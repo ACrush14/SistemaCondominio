@@ -1,0 +1,14 @@
+#Dependências
+node_modules/
+.expo/
+dist/
+
+#Ambientes e Segredos
+.env
+.env.local
+
+#Logs e IDEs
+npm-debug.log*
+.eslintcache
+.vscode/
+.idea/
