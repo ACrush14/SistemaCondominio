@@ -1,11 +1,14 @@
 import express from "express";
 import pool from "./config/db.js";
+import authRoutes from "./routes/authRoutes.js"; //Importando as rotas de autenticação
 
 const app = express();
 app.use(express.json());
 
 //o que caralhos é isso que eu estou escrevendo, não estou entendendo.
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3333;
+
+app.use("/api/auth", authRoutes);
 
 app.get("/api/teste-banco", async (req, res) => {
   try {
