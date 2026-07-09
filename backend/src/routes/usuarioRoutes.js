@@ -3,6 +3,7 @@ import { verificarToken } from "../middlewares/authMiddleware.js";
 import {
   listarUsuarios,
   deletarUsuario,
+  atualizarUsuario,
 } from "../controllers/usuarioController.js";
 
 const router = express.Router();
@@ -13,5 +14,6 @@ const router = express.Router();
 
 router.get("/", verificarToken, listarUsuarios);
 router.delete("/:id", verificarToken, deletarUsuario);
+router.put("/:id", verificarToken, atualizarUsuario);
 
 export default router;
