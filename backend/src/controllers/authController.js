@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import pool from "../config/db.js";
+import jwt from "jsonwebtoken";
 
 export const registrarUsuario = async (req, res) => {
   const { nome, email, senha, role } = req.body;
@@ -36,5 +37,51 @@ export const registrarUsuario = async (req, res) => {
     res
       .status(500)
       .json({ erro: "Erro interno no servidor ao tentar registrar." });
+  }
+};
+
+export const loginUsuario = async (req, res) => {
+  const { email, senha } = req.body;
+
+  try {
+    const usuarioBanco = await pool.query(
+      "SELECT * FROM usuarios WHERE email = $1",
+      [email],
+    );
+
+    if (usuarioBanco.rows.length === 0) {
+      return res.status(401).json({ erro: "Email ou senha incorretos." });
+    }
+
+    const usuario = usuarioBanco.rows[0];
+
+    const senhaValida = await bcrypt.compare(senha, usuario.senha_hash);
+
+    if (!senhaValida) {
+      return res.status(401).json({ erro: "Email ou senha incorretos." });
+    }
+
+    //Gera a pulseira de acesso que é o token jwt)
+    //guardamos apenas o ID e a Role dentro do token, nunca a senha
+    const token = jwt.sign(
+      { id: usuario.id, role: usuario.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }, //O token expira em um dia
+    );
+
+    //Devolve o token e os dados básicos para o celular
+    res.status(200).json({
+      mensagem: "Login realizado com sucesso!",
+      token: token,
+      usuario: {
+        id: usuario.id,
+        nome: usuario.nome,
+        email: usuario.email,
+        role: usuario.role,
+      },
+    });
+  } catch (erro) {
+    console.error("Erro no login: ", erro);
+    res.status(500).json({ erro: "Erro interno no servidor." });
   }
 };

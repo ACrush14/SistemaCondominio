@@ -1,6 +1,9 @@
 import express from "express";
 import { validarCadastro } from "../middlewares/validarMorador.js";
-import { registrarUsuario } from "../controllers/authController.js";
+import {
+  registrarUsuario,
+  loginUsuario,
+} from "../controllers/authController.js";
 
 const router = express.Router();
 
@@ -9,5 +12,6 @@ const router = express.Router();
 //o gerente (registrarUsuario)
 
 router.post("/register", validarCadastro, registrarUsuario);
+router.post("/login", loginUsuario);
 
 export default router;
