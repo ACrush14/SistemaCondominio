@@ -1,9 +1,59 @@
 @import "tailwindcss";
-@import "tailwindcss";
 @config "../../tailwind.config.ts";
 
 @layer base {
   body {
-    @apply bg-neutral-light text-neutral-dark;
+    @apply bg-neutral-light text-neutral-dark transition-colors duration-300;
+  }
+
+  /* Suporte universal ao Modo Escuro (html.dark) */
+  html.dark body {
+    background-color: #0b1323 !important;
+    color: #f1f5f9 !important;
+  }
+
+  /* Cards brancos viram cartões dark sleek automaticamente no Modo Escuro */
+  html.dark .bg-white {
+    background-color: #162238 !important;
+    color: #f1f5f9 !important;
+  }
+
+  html.dark .bg-neutral-light {
+    background-color: #0b1323 !important;
+    color: #f1f5f9 !important;
+  }
+
+  html.dark .bg-gray-50 {
+    background-color: #111a2e !important;
+    color: #e2e8f0 !important;
+  }
+
+  html.dark .bg-gray-100 {
+    background-color: #1e2d4a !important;
+    color: #f8fafc !important;
+  }
+
+  html.dark .border-gray-100,
+  html.dark .border-gray-200,
+  html.dark .border-gray-300 {
+    border-color: rgba(255, 255, 255, 0.12) !important;
+  }
+
+  html.dark input,
+  html.dark select,
+  html.dark textarea {
+    background-color: #111a2e !important;
+    color: #f8fafc !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+  }
+
+  html.dark .text-\[\#0A2540\] {
+    color: #60a5fa !important;
+  }
+
+  html.dark .text-gray-500,
+  html.dark .text-gray-600,
+  html.dark .text-gray-700 {
+    color: #cbd5e1 !important;
   }
 }

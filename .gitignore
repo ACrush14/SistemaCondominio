@@ -1,14 +1,29 @@
-#Dependências
+# Dependências
 node_modules/
-.expo/
-dist/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
-#Ambientes e Segredos
+# Build de Next.js
+frontend/.next/
+frontend/out/
+
+# Variáveis de Ambiente
 .env
 .env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-#Logs e IDEs
+# Logs
 npm-debug.log*
-.eslintcache
+yarn-debug.log*
+yarn-error.log*
+logs
+*.log
+
+# Sistema operacional e Editor
+.DS_Store
+Thumbs.db
 .vscode/
 .idea/
