@@ -23,3 +23,13 @@ export const listarMoradores = async (req, res) => {
     res.status(500).json({ erro: "Erro ao buscar moradores." });
   }
 };
+
+export const deletarMorador = async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query("DELETE FROM moradores WHERE id = $1", [id]);
+    res.json({ mensagem: "Morador removido com sucesso." });
+  } catch (error) {
+    res.status(500).json({ erro: "Erro ao deletar morador." });
+  }
+};
