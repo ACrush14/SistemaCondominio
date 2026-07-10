@@ -66,7 +66,7 @@ export async function POST(req: Request) {
       } else if (idxObs !== -1) {
         observacao = texto.substring(idxObs);
       } else {
-        const frases = texto.split(/[.!?]/).map((f) => f.trim()).filter(Boolean);
+        const frases = texto.split(/[.!?]/).map((f: string) => f.trim()).filter(Boolean);
         if (frases.length > 1) {
           observacao = frases.slice(1).join(". ");
         }
@@ -111,7 +111,7 @@ export async function POST(req: Request) {
       resposta_mania: respostaGeral,
       reserva_intencao: false,
     });
-  } catch (err) {
+  } catch (_err) {
     return NextResponse.json(
       { resposta_mania: "Olá! Sou a IA Mania. Como posso te ajudar com seu condomínio hoje?" },
       { status: 200 }

@@ -103,7 +103,7 @@ export async function POST(req: Request) {
     };
     usuariosDB.push(novo);
     return NextResponse.json(novo, { status: 201 });
-  } catch (err) {
+  } catch (_err) {
     return NextResponse.json({ erro: "Erro ao cadastrar usuário" }, { status: 400 });
   }
 }

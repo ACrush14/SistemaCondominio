@@ -95,7 +95,7 @@ export async function POST(req: Request) {
       mensagem: "Reserva salva com sucesso na base!",
       reserva: novaReserva,
     }, { status: 201 });
-  } catch (err) {
+  } catch (_err) {
     return NextResponse.json({ erro: "Erro ao processar reserva." }, { status: 400 });
   }
 }
