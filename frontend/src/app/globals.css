@@ -1,0 +1,9 @@
+@import "tailwindcss";
+@import "tailwindcss";
+@config "../../tailwind.config.ts";
+
+@layer base {
+  body {
+    @apply bg-neutral-light text-neutral-dark;
+  }
+}

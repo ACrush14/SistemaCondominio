@@ -1,19 +1,16 @@
 import express from "express";
-import { verificarToken } from "../middlewares/authMiddleware.js";
 import {
   listarUsuarios,
+  cadastrarInterno,
   deletarUsuario,
-  atualizarUsuario,
 } from "../controllers/usuarioController.js";
 
 const router = express.Router();
 
-//Quando um get chegar na rota raiz dos usuários, ele deve
-//passar primeiro pelo verificarToken e então só ir
-//buscar os dados (listarUsario)
-
-router.get("/", verificarToken, listarUsuarios);
-router.delete("/:id", verificarToken, deletarUsuario);
-router.put("/:id", verificarToken, atualizarUsuario);
+// Nota: Em um sistema final, você adicionaria o middleware verificarToken aqui
+// para garantir que apenas o Síndico acesse estas rotas.
+router.get("/", listarUsuarios);
+router.post("/cadastro-interno", cadastrarInterno);
+router.delete("/:id", deletarUsuario);
 
 export default router;

@@ -1,18 +1,25 @@
 import express from "express";
+import cors from "cors";
 import pool from "./config/db.js";
-import authRoutes from "./routes/authRoutes.js"; //Importando as rotas de autenticação
+import authRoutes from "./routes/authRoutes.js";
 import usuarioRoutes from "./routes/usuarioRoutes.js";
 import reservaRoutes from "./routes/reservaRoutes.js";
+import visitanteRoutes from "./routes/visitanteRoutes.js";
 
 const app = express();
+
+// 1. OBRIGATÓRIO: Middlewares Globais de Segurança e Formatação ANTES das rotas
+app.use(cors({ origin: "http://localhost:3001" }));
 app.use(express.json());
 
-//o que caralhos é isso que eu estou escrevendo, não estou entendendo.
-const PORT = process.env.PORT || 3333;
-
+// 2. OBRIGATÓRIO: Rotas DEPOIS dos Middlewares
 app.use("/api/auth", authRoutes);
 app.use("/api/usuarios", usuarioRoutes);
 app.use("/api/reservas", reservaRoutes);
+app.use("/api/visitantes", visitanteRoutes);
+
+// Porta e Conexão
+const PORT = process.env.PORT || 3333;
 
 app.get("/api/teste-banco", async (req, res) => {
   try {
