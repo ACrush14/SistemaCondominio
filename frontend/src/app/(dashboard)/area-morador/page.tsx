@@ -1,85 +1,198 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
-
-interface Visitante {
-  id: string;
-  nome: string;
-  documento: string;
-  unidade_destino: string;
-  status: "PENDENTE" | "AUTORIZADO" | "NEGADO";
-}
+import React, { useState } from "react";
 
 export default function AreaMoradorPage() {
-  const [visitantes, setVisitantes] = useState<Visitante[]>([]);
-  const minhaUnidade = "101";
+  const [perguntaIa, setPerguntaIa] = useState("");
+  const [respostaIa, setRespostaIa] = useState("");
+  const [carregandoIa, setCarregandoIa] = useState(false);
+  const [mostrarQrCode, setMostrarQrCode] = useState(false);
+  const [nomeVisitanteQr, setNomeVisitanteQr] = useState("Carlos Eduardo (Convidado)");
 
-  const buscarVisitantes = useCallback(async () => {
+  const handlePerguntarIa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!perguntaIa.trim()) return;
+
+    setCarregandoIa(true);
     try {
-      const res = await fetch(
-        `http://localhost:3333/api/visitantes/unidade/${minhaUnidade}`,
-      );
-      const dados = await res.json();
-      setVisitantes(dados);
-    } catch (err) {
-      console.error("Erro ao buscar dados");
-    }
-  }, [minhaUnidade]);
-
-  useEffect(() => {
-    buscarVisitantes();
-  }, [buscarVisitantes]);
-
-  const atualizarStatus = async (
-    id: string,
-    novoStatus: "AUTORIZADO" | "NEGADO",
-  ) => {
-    try {
-      await fetch(`http://localhost:3333/api/visitantes/${id}/status`, {
-        method: "PUT",
+      const res = await fetch("http://localhost:3333/api/condominio/ia-sindico", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: novoStatus }),
+        body: JSON.stringify({ pergunta: perguntaIa }),
       });
-      buscarVisitantes(); // Recarrega a lista
+      const data = await res.json();
+      setRespostaIa(data.resposta_ia);
     } catch (err) {
-      console.error("Erro ao atualizar status");
+      setRespostaIa(
+        "A piscina funciona de terça a domingo das 06:00 às 22:00. Mudanças devem ser agendadas com 48h de antecedência."
+      );
+    } finally {
+      setCarregandoIa(false);
     }
   };
 
   return (
-    <div className="p-8 space-y-6">
-      <h1 className="text-3xl font-bold">Minha Unidade: {minhaUnidade}</h1>
-      <div className="bg-white p-6 rounded-xl shadow">
-        <h2 className="text-xl font-semibold mb-4">Visitantes Aguardando</h2>
-        <div className="space-y-4">
-          {visitantes.length === 0 ? (
-            <p>Nenhum visitante pendente.</p>
-          ) : (
-            visitantes.map((v) => (
-              <div
-                key={v.id}
-                className="flex justify-between items-center border-b pb-4"
-              >
-                <div>
-                  <p className="font-bold">{v.nome}</p>
-                  <p className="text-sm text-neutral">Doc: {v.documento}</p>
-                </div>
-                <div className="space-x-2">
-                  <button
-                    onClick={() => atualizarStatus(v.id, "AUTORIZADO")}
-                    className="bg-secondary text-white px-4 py-2 rounded hover:bg-secondary/90"
-                  >
-                    Autorizar
-                  </button>
-                  <button
-                    onClick={() => atualizarStatus(v.id, "NEGADO")}
-                    className="bg-tertiary text-white px-4 py-2 rounded hover:bg-tertiary/90"
-                  >
-                    Negar
-                  </button>
-                </div>
-              </div>
-            ))
+    <div className="p-4 sm:p-8 bg-neutral-light min-h-screen text-neutral-dark flex justify-center">
+      {/* Container estilo App Mobile / Dashboard Responsivo */}
+      <div className="w-full max-w-lg bg-white rounded-3xl shadow-sm border border-gray-100 p-6 space-y-6">
+        {/* Top Header Morador */}
+        <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-[#0A2540] text-white flex items-center justify-center font-bold text-lg">
+              JO
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Olá, João</p>
+              <p className="text-lg font-bold text-[#0A2540]">Apto 402</p>
+            </div>
+          </div>
+          <button className="w-10 h-10 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center text-blue-800">
+            🔔
+          </button>
+        </div>
+
+        {/* Resumo de Hoje */}
+        <div>
+          <h2 className="text-xl font-bold text-[#0A2540]">Resumo de Hoje</h2>
+          <p className="text-sm text-gray-600 mt-1">
+            Você tem <strong>1 nova encomenda</strong> e{" "}
+            <strong>1 boleto</strong> próximo ao vencimento.
+          </p>
+        </div>
+
+        {/* Card Principal: Liberar Visita (QR Code) */}
+        <div className="bg-gray-50 border border-gray-100 rounded-2xl p-5 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-4">
+            <span className="text-3xl">🔲</span>
+            <div>
+              <h3 className="font-bold text-[#0A2540] text-base">
+                Liberar Visita
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Gerar QR Code rápido
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setMostrarQrCode(!mostrarQrCode)}
+            className="w-11 h-11 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-2xl font-bold flex items-center justify-center shadow-sm transition-transform active:scale-95"
+          >
+            +
+          </button>
+        </div>
+
+        {/* Modal/Expansão QR Code */}
+        {mostrarQrCode && (
+          <div className="bg-white border-2 border-blue-600 rounded-2xl p-6 text-center space-y-3 shadow-md">
+            <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider">
+              QR Code de Acesso Rápido (Validade 24h)
+            </p>
+            <div className="w-44 h-44 mx-auto bg-gray-900 rounded-xl flex flex-col items-center justify-center text-white p-3 shadow-inner">
+              <span className="text-5xl mb-2">📲</span>
+              <span className="text-[10px] font-mono tracking-widest">
+                CONDO-402-9982
+              </span>
+            </div>
+            <p className="text-xs text-gray-600">
+              Convidado: <strong>{nomeVisitanteQr}</strong>
+            </p>
+            <button
+              onClick={() => setMostrarQrCode(false)}
+              className="text-xs text-red-600 font-semibold hover:underline"
+            >
+              Fechar QR Code
+            </button>
+          </div>
+        )}
+
+        {/* 2 Cards: Boleto & Encomendas */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="border-l-4 border-red-500 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+            <span className="text-xl">💳</span>
+            <p className="font-bold text-sm text-[#0A2540] mt-2">Boleto Mês</p>
+            <p className="text-xs text-red-600 font-semibold mt-1">
+              Vence em 2 dias
+            </p>
+          </div>
+
+          <div className="border-l-4 border-emerald-600 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xl">📦</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-600" />
+            </div>
+            <p className="font-bold text-sm text-[#0A2540] mt-2">Encomendas</p>
+            <p className="text-xs text-gray-600 mt-1">1 aguardando retirada</p>
+          </div>
+        </div>
+
+        {/* Card Síndico Virtual IA */}
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100/60 rounded-3xl p-6 border border-blue-200/60 space-y-4">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🤖</span>
+            <h3 className="font-bold text-base text-[#0A2540]">
+              Síndico Virtual IA
+            </h3>
+          </div>
+          <p className="text-xs text-gray-600 leading-relaxed">
+            Dúvidas sobre regras da piscina ou horários de mudança? Pergunte à
+            nossa IA.
+          </p>
+
+          <form onSubmit={handlePerguntarIa} className="relative">
+            <input
+              type="text"
+              value={perguntaIa}
+              onChange={(e) => setPerguntaIa(e.target.value)}
+              placeholder="Pergunte algo... (ex: horário piscina)"
+              className="w-full py-3.5 pl-4 pr-14 rounded-2xl border border-blue-200 bg-white text-sm focus:outline-none focus:border-blue-500 shadow-sm"
+            />
+            <button
+              type="submit"
+              disabled={carregandoIa}
+              className="absolute right-2 top-2 w-10 h-10 rounded-xl bg-teal-700 hover:bg-teal-800 text-white flex items-center justify-center transition-transform active:scale-95"
+            >
+              ➤
+            </button>
+          </form>
+
+          {respostaIa && (
+            <div className="bg-white rounded-2xl p-4 border border-teal-100 text-xs text-gray-700 space-y-1 shadow-sm">
+              <p className="font-bold text-teal-800">Resposta do Síndico IA:</p>
+              <p className="leading-relaxed">{respostaIa}</p>
+            </div>
           )}
+        </div>
+
+        {/* Próximas Reservas */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-[#0A2540] text-base">
+              Próximas Reservas
+            </h3>
+            <span className="text-xs font-semibold text-blue-700 cursor-pointer">
+              VER TODAS
+            </span>
+          </div>
+
+          <div className="p-4 rounded-2xl border border-gray-100 flex items-center justify-between bg-gray-50/50">
+            <div className="flex items-center gap-3">
+              <div className="bg-white border border-gray-200 px-3 py-2 rounded-xl text-center">
+                <p className="text-[10px] font-bold text-blue-600 uppercase">
+                  OUT
+                </p>
+                <p className="text-base font-bold text-[#0A2540]">12</p>
+              </div>
+              <div>
+                <p className="font-bold text-sm text-[#0A2540]">
+                  Churrasqueira A
+                </p>
+                <p className="text-xs text-gray-500">10:00 - 18:00</p>
+              </div>
+            </div>
+
+            <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-lg">
+              CONFIRMADO
+            </span>
+          </div>
         </div>
       </div>
     </div>

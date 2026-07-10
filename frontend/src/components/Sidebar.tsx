@@ -36,37 +36,48 @@ export function Sidebar() {
         </p>
       </div>
 
-      <nav className="flex-1 p-4 flex flex-col gap-2 mt-4">
+      <nav className="flex-1 p-4 flex flex-col gap-1.5 mt-2 overflow-y-auto">
         <Link
           href="/"
-          className="px-4 py-3 rounded-lg hover:bg-white/10 transition-all font-medium text-neutral-light/80 hover:text-white"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/10 transition-all font-medium text-neutral-light/90 hover:text-white"
         >
-          Painel
+          <span>📊</span>
+          <span>Painel do Síndico</span>
         </Link>
         <Link
           href="/reservas"
-          className="px-4 py-3 rounded-lg hover:bg-white/10 transition-all font-medium text-neutral-light/80 hover:text-white"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/10 transition-all font-medium text-neutral-light/90 hover:text-white"
         >
-          Reservas
+          <span>📅</span>
+          <span>Reservas</span>
         </Link>
         <Link
-          href="/usuarios"
-          className="px-4 py-3 rounded-lg hover:bg-white/10 transition-all font-medium text-neutral-light/80 hover:text-white"
+          href="/ocorrencias"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/10 transition-all font-medium text-neutral-light/90 hover:text-white"
         >
-          Usuários
-        </Link>
-        {/* Novo link da Portaria */}
-        <Link
-          href="/portaria"
-          className="px-4 py-3 rounded-lg hover:bg-white/10 transition-all font-medium text-neutral-light/80 hover:text-white"
-        >
-          Portaria
+          <span>📋</span>
+          <span>Ocorrências e Avisos</span>
         </Link>
         <Link
           href="/area-morador"
-          className="px-4 py-3 rounded-lg hover:bg-white/10 transition-all font-medium text-neutral-light/80 hover:text-white"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/10 transition-all font-medium text-neutral-light/90 hover:text-white"
         >
-          Área do Morador
+          <span>📱</span>
+          <span>Área do Morador (IA)</span>
+        </Link>
+        <Link
+          href="/portaria"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/10 transition-all font-medium text-neutral-light/90 hover:text-white"
+        >
+          <span>🛡️</span>
+          <span>Portaria & QR Code</span>
+        </Link>
+        <Link
+          href="/usuarios"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/10 transition-all font-medium text-neutral-light/90 hover:text-white"
+        >
+          <span>👥</span>
+          <span>Moradores & Usuários</span>
         </Link>
       </nav>
 

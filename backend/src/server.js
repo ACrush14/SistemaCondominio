@@ -5,11 +5,12 @@ import authRoutes from "./routes/authRoutes.js";
 import usuarioRoutes from "./routes/usuarioRoutes.js";
 import reservaRoutes from "./routes/reservaRoutes.js";
 import visitanteRoutes from "./routes/visitanteRoutes.js";
+import condominioRoutes from "./routes/condominioRoutes.js";
 
 const app = express();
 
 // 1. OBRIGATÓRIO: Middlewares Globais de Segurança e Formatação ANTES das rotas
-app.use(cors({ origin: "http://localhost:3001" }));
+app.use(cors({ origin: "*" }));
 app.use(express.json());
 
 // 2. OBRIGATÓRIO: Rotas DEPOIS dos Middlewares
@@ -17,6 +18,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/usuarios", usuarioRoutes);
 app.use("/api/reservas", reservaRoutes);
 app.use("/api/visitantes", visitanteRoutes);
+app.use("/api/condominio", condominioRoutes);
 
 // Porta e Conexão
 const PORT = process.env.PORT || 3333;
