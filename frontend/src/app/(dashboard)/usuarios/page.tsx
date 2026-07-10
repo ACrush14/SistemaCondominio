@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 
 interface Usuario {
   id: string;
@@ -15,7 +14,6 @@ export default function UsuariosPage() {
   const [erro, setErro] = useState("");
   const [carregando, setCarregando] = useState(true);
   const [modalAberto, setModalAberto] = useState(false);
-  const router = useRouter();
 
   // Estados do Formulário de Novo Usuário
   const [nome, setNome] = useState("");
