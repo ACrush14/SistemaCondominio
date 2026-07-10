@@ -11,7 +11,7 @@ export default function MoradoresPage() {
   });
 
   const buscarMoradores = useCallback(async () => {
-    const res = await fetch("http://localhost:3333/api/moradores");
+    const res = await fetch("/api/usuarios");
     setMoradores(await res.json());
   }, []);
 
@@ -21,7 +21,7 @@ export default function MoradoresPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch("http://localhost:3333/api/moradores", {
+    await fetch("/api/usuarios", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
@@ -32,7 +32,7 @@ export default function MoradoresPage() {
 
   const deletarMorador = async (id: string) => {
     if (!confirm("Tem certeza que deseja remover este morador?")) return;
-    await fetch(`http://localhost:3333/api/moradores/${id}`, {
+    await fetch(`/api/usuarios/${id}`, {
       method: "DELETE",
     });
     buscarMoradores();

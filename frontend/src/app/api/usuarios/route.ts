@@ -16,6 +16,13 @@ let usuariosDB = [
     unidade: "Portaria Principal",
   },
   {
+    id: "100",
+    nome: "João (Morador Tailson)",
+    email: "joao@tailson.com",
+    perfil: "MORADOR",
+    unidade: "Apto 301",
+  },
+  {
     id: "3",
     nome: "Beatriz Mendonça",
     email: "beatriz.101@condominio.com",

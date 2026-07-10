@@ -38,7 +38,7 @@ export default function OcorrenciasPage() {
   const [novaDescricao, setNovaDescricao] = useState("");
 
   useEffect(() => {
-    fetch("http://localhost:3333/api/condominio/ocorrencias")
+    fetch("/api/condominio/ocorrencias")
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {

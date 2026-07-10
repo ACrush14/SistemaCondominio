@@ -14,7 +14,7 @@ export default function AreaMoradorPage() {
 
     setCarregandoIa(true);
     try {
-      const res = await fetch("http://localhost:3333/api/condominio/ia-sindico", {
+      const res = await fetch("/api/condominio/ia-mania", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pergunta: perguntaIa }),
@@ -41,8 +41,8 @@ export default function AreaMoradorPage() {
               JO
             </div>
             <div>
-              <p className="text-xs text-gray-500">Olá, João</p>
-              <p className="text-lg font-bold text-[#0A2540]">Apto 402</p>
+              <p className="text-xs text-gray-500">Olá, João (Tailson)</p>
+              <p className="text-lg font-bold text-[#0A2540]">Apto 301</p>
             </div>
           </div>
           <button className="w-10 h-10 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center text-blue-800">
