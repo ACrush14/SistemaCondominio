@@ -51,18 +51,15 @@ export default function OcorrenciasPage() {
   const handleCriarOcorrencia = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch(
-        "http://localhost:3333/api/condominio/ocorrencias",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            titulo: novoTitulo,
-            descricao: novaDescricao,
-            categoria: "MANUTENÇÃO",
-          }),
-        },
-      );
+      const res = await fetch("/api/condominio/ocorrencias", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          titulo: novoTitulo,
+          descricao: novaDescricao,
+          categoria: "MANUTENÇÃO",
+        }),
+      });
       const nova = await res.json();
       setOcorrencias([nova, ...ocorrencias]);
       setModalNova(false);

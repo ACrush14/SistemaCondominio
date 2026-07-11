@@ -1,45 +1,15 @@
 import { NextResponse } from "next/server";
+import { ocorrenciasDB } from "../../../../lib/store/ocorrencias";
 
-let ocorrenciasDB = [
-  {
-    id: "1",
-    titulo: "Barulho excessivo após as 22h",
-    local: "Salão de Festas",
-    unidade: "Apto 202",
-    morador: "Ricardo Ferreira",
-    status: "EM ANÁLISE",
-    categoria: "CONVIVÊNCIA",
-    data: "Ontem, 23:15",
-    resumo_ia:
-      "Morador relatou som alto vindo da área de festas após o horário permitido. Foi emitido alerta de moderação pelo síndico.",
-  },
-  {
-    id: "2",
-    titulo: "Vazamento na Garagem Subsolo 2",
-    local: "Garagem Subsolo 2",
-    unidade: "Apto 302",
-    morador: "Lucas Siqueira",
-    status: "MANUTENÇÃO",
-    categoria: "MANUTENÇÃO",
-    data: "Hoje, 14:30",
-    resumo_ia:
-      "Morador relatou poça d'água próximo à vaga 42. Provável origem: tubulação do teto. Requer inspeção do zelador.",
-  },
-  {
-    id: "3",
-    titulo: "Portão da garagem com demora para fechar",
-    local: "Portaria Principal",
-    unidade: "Administração",
-    morador: "Fulano Alterado (Porteiro)",
-    status: "RESOLVIDO",
-    categoria: "SEGURANÇA",
-    data: "10/07/2026, 08:00",
-    resumo_ia:
-      "Sensor ótico foi alinhado pela equipe técnica técnica do condomínio. Funcionamento restabelecido.",
-  },
-];
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const unidade = searchParams.get("unidade");
 
-export async function GET() {
+  if (unidade) {
+    const filtradas = ocorrenciasDB.filter((o) => o.unidade === unidade);
+    return NextResponse.json(filtradas);
+  }
+
   return NextResponse.json(ocorrenciasDB);
 }
 
@@ -52,7 +22,7 @@ export async function POST(req: Request) {
       local: body.local || "Condomínio",
       unidade: body.unidade || "-",
       morador: body.morador || "Morador",
-      status: "EM ANÁLISE",
+      status: "EM ANÁLISE" as const,
       categoria: body.categoria || "GERAL",
       data: "Hoje, " + new Date().toLocaleTimeString().slice(0, 5),
       resumo_ia:

@@ -1,5 +1,15 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+
+const UNIDADE_LOGADA = "Apto 301"; // TODO: substituir pela unidade do usuário autenticado quando o login real estiver ligado
+
+interface Encomenda {
+  id: string;
+  unidade: string;
+  remetente: string;
+  status: "AGUARDANDO_AVISO" | "AGUARDANDO_RETIRADA" | "ENTREGUE";
+  data_chegada: string;
+}
 
 export default function AreaMoradorPage() {
   const [perguntaIa, setPerguntaIa] = useState("");
@@ -7,6 +17,27 @@ export default function AreaMoradorPage() {
   const [carregandoIa, setCarregandoIa] = useState(false);
   const [mostrarQrCode, setMostrarQrCode] = useState(false);
   const [nomeVisitanteQr, setNomeVisitanteQr] = useState("Carlos Eduardo (Convidado)");
+  const [encomendas, setEncomendas] = useState<Encomenda[]>([]);
+
+  useEffect(() => {
+    fetch(`/api/condominio/encomendas?unidade=${encodeURIComponent(UNIDADE_LOGADA)}`)
+      .then((res) => res.json())
+      .then((data) => setEncomendas(data))
+      .catch(() => {});
+  }, []);
+
+  const encomendasPendentes = encomendas.filter((e) => e.status !== "ENTREGUE");
+
+  const retirarEncomenda = async (id: string) => {
+    await fetch(`/api/condominio/encomendas/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "ENTREGUE" }),
+    });
+    setEncomendas(
+      encomendas.map((e) => (e.id === id ? { ...e, status: "ENTREGUE" } : e))
+    );
+  };
 
   const handlePerguntarIa = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +85,7 @@ export default function AreaMoradorPage() {
         <div>
           <h2 className="text-xl font-bold text-[#0A2540]">Resumo de Hoje</h2>
           <p className="text-sm text-gray-600 mt-1">
-            Você tem <strong>1 nova encomenda</strong> e{" "}
+            Você tem <strong>{encomendasPendentes.length} encomenda(s) pendente(s)</strong> e{" "}
             <strong>1 boleto</strong> próximo ao vencimento.
           </p>
         </div>
@@ -120,7 +151,19 @@ export default function AreaMoradorPage() {
               <span className="w-2 h-2 rounded-full bg-emerald-600" />
             </div>
             <p className="font-bold text-sm text-[#0A2540] mt-2">Encomendas</p>
-            <p className="text-xs text-gray-600 mt-1">1 aguardando retirada</p>
+            <p className="text-xs text-gray-600 mt-1">
+              {encomendasPendentes.length === 0
+                ? "Nenhuma pendente"
+                : `${encomendasPendentes.length} aguardando retirada`}
+            </p>
+            {encomendasPendentes[0] && (
+              <button
+                onClick={() => retirarEncomenda(encomendasPendentes[0].id)}
+                className="mt-2 text-xs font-bold text-emerald-700 hover:underline"
+              >
+                Retirar {encomendasPendentes[0].remetente}
+              </button>
+            )}
           </div>
         </div>
 

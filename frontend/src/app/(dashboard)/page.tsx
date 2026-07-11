@@ -8,11 +8,17 @@ interface OcorrenciaDashboard {
   local: string;
   unidade: string;
   morador: string;
-  prioridade: "ALTA" | "MÉDIA" | "BAIXA";
   status: string;
+  categoria: string;
   resumo_ia: string;
   data: string;
 }
+
+const CORES_CATEGORIA: Record<string, string> = {
+  "MANUTENÇÃO": "bg-red-100 text-red-700",
+  "SEGURANÇA": "bg-amber-100 text-amber-800",
+  "CONVIVÊNCIA": "bg-blue-100 text-blue-700",
+};
 
 interface Comunicado {
   id: string;
@@ -23,41 +29,22 @@ interface Comunicado {
 }
 
 export default function PainelSindicoPage() {
-  const [ocorrencias, setOcorrencias] = useState<OcorrenciaDashboard[]>([
-    {
-      id: "1",
-      titulo: "Vazamento na Garagem Subsolo 2",
-      local: "Garagem Subsolo 2",
-      unidade: "Apt 301",
-      morador: "Fernanda Guimarães",
-      prioridade: "ALTA",
-      status: "Pendente",
-      resumo_ia: "Infiltração grave próxima à vaga 42. Risco de gotejamento sobre veículos. Requer encanador urgente.",
-      data: "Hoje, 14:10",
-    },
-    {
-      id: "2",
-      titulo: "Barulho Excessivo após 23h",
-      local: "Torre B - 4º Andar",
-      unidade: "Apt 402",
-      morador: "Gabriel Souza",
-      prioridade: "MÉDIA",
-      status: "Em Análise",
-      resumo_ia: "Relatos recorrentes de som alto na unidade 402 após horário de silêncio. IA sugere notificação preventiva.",
-      data: "Ontem, 23:45",
-    },
-    {
-      id: "3",
-      titulo: "Lâmpada Queimada no Corredor",
-      local: "Torre A - 2º Andar",
-      unidade: "Apt 201",
-      morador: "Mariana Vasconcelos",
-      prioridade: "BAIXA",
-      status: "Pendente",
-      resumo_ia: "Troca de lâmpada LED no hall do elevador do 2º andar.",
-      data: "Ontem, 16:20",
-    },
-  ]);
+  const [ocorrencias, setOcorrencias] = useState<OcorrenciaDashboard[]>([]);
+  const [totalMoradores, setTotalMoradores] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/condominio/ocorrencias")
+      .then((res) => res.json())
+      .then((data) => setOcorrencias(data))
+      .catch(() => {});
+
+    fetch("/api/usuarios")
+      .then((res) => res.json())
+      .then((data: { perfil: string }[]) => {
+        setTotalMoradores(data.filter((u) => u.perfil === "MORADOR").length);
+      })
+      .catch(() => {});
+  }, []);
 
   const [comunicados, setComunicados] = useState<Comunicado[]>([
     {
@@ -86,13 +73,22 @@ export default function PainelSindicoPage() {
   const [novoConteudo, setNovoConteudo] = useState("");
   const [mensagemAviso, setMensagemAviso] = useState("");
 
-  const resolverOcorrencia = (id: string) => {
-    setOcorrencias(
-      ocorrencias.map((o) =>
-        o.id === id ? { ...o, status: "Resolvido" } : o
-      )
-    );
-    setMensagemAviso("Ocorrência marcada como Resolvida com sucesso!");
+  const resolverOcorrencia = async (id: string) => {
+    try {
+      await fetch(`/api/condominio/ocorrencias/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "RESOLVIDO" }),
+      });
+      setOcorrencias(
+        ocorrencias.map((o) =>
+          o.id === id ? { ...o, status: "RESOLVIDO" } : o
+        )
+      );
+      setMensagemAviso("Ocorrência marcada como Resolvida com sucesso!");
+    } catch (_err) {
+      setMensagemAviso("Não foi possível atualizar a ocorrência.");
+    }
   };
 
   const perguntarAssistenteIa = async (e: React.FormEvent) => {
@@ -190,7 +186,7 @@ export default function PainelSindicoPage() {
               Ocorrências Pendentes
             </p>
             <p className="text-3xl font-bold text-[#0A2540] dark:text-white mt-1">
-              {ocorrencias.filter((o) => o.status !== "Resolvido").length}
+              {ocorrencias.filter((o) => o.status !== "RESOLVIDO").length}
             </p>
           </div>
         </div>
@@ -228,7 +224,7 @@ export default function PainelSindicoPage() {
               Unidades & Moradores
             </p>
             <p className="text-3xl font-bold text-[#0A2540] dark:text-white mt-1">
-              10 Aptos
+              {totalMoradores === null ? "…" : `${totalMoradores} Moradores`}
             </p>
           </div>
         </div>
@@ -330,14 +326,10 @@ export default function PainelSindicoPage() {
                     <div className="flex items-center gap-2">
                       <span
                         className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase ${
-                          o.prioridade === "ALTA"
-                            ? "bg-red-100 text-red-700"
-                            : o.prioridade === "MÉDIA"
-                            ? "bg-amber-100 text-amber-800"
-                            : "bg-blue-100 text-blue-700"
+                          CORES_CATEGORIA[o.categoria] || "bg-gray-100 text-gray-700"
                         }`}
                       >
-                        Prioridade {o.prioridade}
+                        {o.categoria}
                       </span>
                       <span className="text-xs text-gray-400 font-medium">
                         • {o.data}
@@ -345,7 +337,7 @@ export default function PainelSindicoPage() {
                     </div>
                     <span
                       className={`text-xs font-bold px-3 py-1 rounded-lg ${
-                        o.status === "Resolvido"
+                        o.status === "RESOLVIDO"
                           ? "bg-emerald-100 text-emerald-800"
                           : "bg-amber-100 text-amber-800"
                       }`}
@@ -374,7 +366,7 @@ export default function PainelSindicoPage() {
                   </div>
 
                   <div className="flex justify-end gap-3 pt-1">
-                    {o.status !== "Resolvido" && (
+                    {o.status !== "RESOLVIDO" && (
                       <button
                         onClick={() => resolverOcorrencia(o.id)}
                         className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-colors shadow-xs"
