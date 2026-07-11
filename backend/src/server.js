@@ -9,19 +9,33 @@ import condominioRoutes from "./routes/condominioRoutes.js";
 
 const app = express();
 
-// 1. OBRIGATÓRIO: Middlewares Globais de Segurança e Formatação ANTES das rotas
-app.use(cors({ origin: "*" }));
+// 1. OBRIGATÓRIO: Configuração de CORS habilitando integração com o Frontend em http://localhost:3001
+app.use(
+  cors({
+    origin: ["http://localhost:3001", "http://127.0.0.1:3001", "*"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
 app.use(express.json());
 
-// 2. OBRIGATÓRIO: Rotas DEPOIS dos Middlewares
+// 2. Rotas Principais da API do Backend
 app.use("/api/auth", authRoutes);
 app.use("/api/usuarios", usuarioRoutes);
 app.use("/api/reservas", reservaRoutes);
 app.use("/api/visitantes", visitanteRoutes);
 app.use("/api/condominio", condominioRoutes);
 
-// Porta e Conexão
-const PORT = process.env.PORT || 3333;
+// Rota de Healthcheck / Status
+app.get("/api/status", async (req, res) => {
+  res.json({
+    servidor: "CondoManage Backend Express",
+    status: "ONLINE",
+    origemPermitida: "http://localhost:3001",
+    data: new Date().toISOString(),
+  });
+});
 
 app.get("/api/teste-banco", async (req, res) => {
   try {
@@ -32,10 +46,16 @@ app.get("/api/teste-banco", async (req, res) => {
     });
   } catch (erro) {
     console.error("Erro ao conectar no banco:", erro);
-    res.status(500).json({ erro: "falha na conexão com o banco de dados." });
+    res.status(500).json({ erro: "Falha na conexão com o banco de dados." });
   }
 });
 
+// Porta do Backend (Padrão 3333 para não conflitar com Next.js na 3001)
+const PORT = process.env.PORT || 3333;
+
 app.listen(PORT, () => {
-  console.log(`Servidor rodando com sucesso na porta ${PORT}`);
+  console.log(`===========================================================`);
+  console.log(`🚀 CondoManage Backend rodando com sucesso na porta ${PORT}`);
+  console.log(`🔗 Integrado e aceitando requisições do Frontend: http://localhost:3001`);
+  console.log(`===========================================================`);
 });
