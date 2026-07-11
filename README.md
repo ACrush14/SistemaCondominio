@@ -22,6 +22,8 @@
 
 O **CondoManage** é uma solução de gestão condominial full-stack de última geração concebida para modernizar a rotina de condomínios verticais e horizontais. A plataforma integra em um único ecossistema o painel administrativo do Síndico, a operação de segurança da portaria, o controle interativo de áreas comuns e a **IA Mania**, uma assistente conversacional inteligente capaz de agendar reservas por meio de linguagem natural.
 
+🔗 **Aplicação em produção**: [sistemacondominio-nine.vercel.app](https://sistemacondominio-nine.vercel.app) — testável remotamente, no celular ou no PC.
+
 ---
 
 ## 📸 Capturas de Tela
@@ -108,7 +110,13 @@ O **CondoManage** é uma solução de gestão condominial full-stack de última 
 - **Banco de Dados**: PostgreSQL (Driver `pg` + Pool de conexões) com fallback em memória persistente para alta disponibilidade
 - **Segurança**: Criptografia de senhas com `bcrypt` e validação CORS
 
-> **Nota sobre o estado atual da arquitetura:** o deploy na Vercel builda apenas a pasta `frontend/` (ver `vercel.json`), então o backend Express acima **não roda em produção hoje**. Quem realmente atende as requisições do app — em dev e no deploy — são as rotas do Next.js em `frontend/src/app/api/*`, com dados guardados em memória (`frontend/src/lib/store/`). Migrar essa persistência para um Postgres real acessível pelas rotas do Next.js é o próximo passo planejado. Detalhes em [`CLAUDE.md`](CLAUDE.md).
+> **Nota sobre o estado atual da arquitetura:** o deploy na Vercel builda apenas a pasta `frontend/` (ver `vercel.json`), então o backend Express acima **não roda em produção hoje**. Quem realmente atende as requisições do app — em dev e no deploy — são as rotas do Next.js em `frontend/src/app/api/*`.
+>
+> **Persistência (migração em andamento):**
+> - ✅ **Moradores & Usuários** — já grava num Postgres real, gerenciado pelo [Neon](https://neon.tech), configurado como `DATABASE_URL` tanto localmente (`frontend/.env.local`) quanto no ambiente de Produção da Vercel. Senhas com hash via `bcryptjs`.
+> - ⏳ **Reservas, Ocorrências, Encomendas e Área do Morador** — ainda em memória (`frontend/src/lib/store/`); funcionam, mas os dados resetam de tempos em tempos. Migração para o mesmo Postgres é o próximo passo.
+>
+> Detalhes completos (schema, decisões, avisos de segurança) em [`CLAUDE.md`](CLAUDE.md).
 
 ---
 
