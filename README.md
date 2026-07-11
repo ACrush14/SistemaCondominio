@@ -24,6 +24,22 @@ O **CondoManage** é uma solução de gestão condominial full-stack de última 
 
 ---
 
+## 📸 Capturas de Tela
+
+| Painel do Síndico | Reservas de Áreas Comuns |
+|---|---|
+| ![Painel do Síndico](docs/screenshots/painel-sindico.png) | ![Reservas](docs/screenshots/reservas.png) |
+
+| Ocorrências e Avisos | Área do Morador (IA) |
+|---|---|
+| ![Ocorrências](docs/screenshots/ocorrencias.png) | ![Área do Morador](docs/screenshots/area-morador.png) |
+
+| Portaria | Moradores & Usuários |
+|---|---|
+| ![Portaria](docs/screenshots/portaria.png) | ![Usuários](docs/screenshots/usuarios.png) |
+
+---
+
 ## ✨ Principais Funcionalidades
 
 ### 👑 1. Painel Executivo do Síndico (Anderson de Lima)
@@ -91,6 +107,8 @@ O **CondoManage** é uma solução de gestão condominial full-stack de última 
 - **Framework API**: Express.js
 - **Banco de Dados**: PostgreSQL (Driver `pg` + Pool de conexões) com fallback em memória persistente para alta disponibilidade
 - **Segurança**: Criptografia de senhas com `bcrypt` e validação CORS
+
+> **Nota sobre o estado atual da arquitetura:** o deploy na Vercel builda apenas a pasta `frontend/` (ver `vercel.json`), então o backend Express acima **não roda em produção hoje**. Quem realmente atende as requisições do app — em dev e no deploy — são as rotas do Next.js em `frontend/src/app/api/*`, com dados guardados em memória (`frontend/src/lib/store/`). Migrar essa persistência para um Postgres real acessível pelas rotas do Next.js é o próximo passo planejado. Detalhes em [`CLAUDE.md`](CLAUDE.md).
 
 ---
 
