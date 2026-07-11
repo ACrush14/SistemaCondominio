@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
-import { usuariosDB } from "../../../../lib/store/usuarios";
+import { pool } from "../../../../lib/store/db";
 
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const indice = usuariosDB.findIndex((u) => u.id === id);
+  const resultado = await pool.query("DELETE FROM usuarios WHERE id = $1", [id]);
 
-  if (indice === -1) {
+  if (resultado.rowCount === 0) {
     return NextResponse.json({ erro: "Usuário não encontrado." }, { status: 404 });
   }
 
-  usuariosDB.splice(indice, 1);
   return NextResponse.json({ mensagem: `Usuário ${id} revogado com sucesso.` });
 }

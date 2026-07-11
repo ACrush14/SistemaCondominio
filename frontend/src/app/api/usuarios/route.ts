@@ -1,24 +1,31 @@
 import { NextResponse } from "next/server";
-import { usuariosDB } from "../../../lib/store/usuarios";
+import bcrypt from "bcryptjs";
+import { pool } from "../../../lib/store/db";
 
 export async function GET() {
-  return NextResponse.json(usuariosDB);
+  const resultado = await pool.query(
+    "SELECT id, nome, email, perfil, unidade, status FROM usuarios ORDER BY id ASC"
+  );
+  return NextResponse.json(resultado.rows);
 }
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const novo = {
-      id: String(Date.now()),
-      nome: body.nome,
-      email: body.email,
-      perfil: body.perfil || "MORADOR",
-      unidade: body.unidade || "-",
-      status: "ATIVO" as const,
-    };
-    usuariosDB.push(novo);
-    return NextResponse.json(novo, { status: 201 });
-  } catch (_err) {
+    const senhaHash = await bcrypt.hash(body.senha || "trocar123", 10);
+
+    const resultado = await pool.query(
+      `INSERT INTO usuarios (nome, email, senha_hash, perfil, unidade)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, nome, email, perfil, unidade, status`,
+      [body.nome, body.email, senhaHash, body.perfil || "MORADOR", body.unidade || "-"]
+    );
+
+    return NextResponse.json(resultado.rows[0], { status: 201 });
+  } catch (erro: unknown) {
+    if (erro && typeof erro === "object" && "code" in erro && erro.code === "23505") {
+      return NextResponse.json({ erro: "Este email já está cadastrado." }, { status: 409 });
+    }
     return NextResponse.json({ erro: "Erro ao cadastrar usuário" }, { status: 400 });
   }
 }
