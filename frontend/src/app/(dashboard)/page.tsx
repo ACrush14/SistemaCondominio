@@ -164,8 +164,8 @@ export default function PainelSindicoPage() {
         </div>
       )}
 
-      {/* 4 Cards de KPI do Síndico */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Cards de KPI do Síndico */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <div className="bg-white dark:bg-[#162238] p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="w-11 h-11 rounded-xl bg-red-50 text-red-600 flex items-center justify-center text-xl">
@@ -181,25 +181,6 @@ export default function PainelSindicoPage() {
             </p>
             <p className="text-3xl font-bold text-[#0A2540] dark:text-white mt-1">
               {ocorrencias.filter((o) => o.status !== "RESOLVIDO").length}
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-[#162238] p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl">
-              🤖
-            </span>
-            <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-full">
-              Excelente
-            </span>
-          </div>
-          <div className="mt-4">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              Resolução com IA
-            </p>
-            <p className="text-3xl font-bold text-[#0A2540] dark:text-white mt-1">
-              92%
             </p>
           </div>
         </div>
@@ -375,57 +356,8 @@ export default function PainelSindicoPage() {
           </div>
         </div>
 
-        {/* Coluna da Direita: Distribuição por Categoria + Comunicados (1 Coluna) */}
+        {/* Coluna da Direita: Comunicados (1 Coluna) */}
         <div className="space-y-6">
-          {/* Box de Distribuição das Ocorrências */}
-          <div className="bg-white dark:bg-[#162238] rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-6 space-y-4">
-            <h2 className="text-lg font-bold text-[#0A2540] dark:text-white">
-              Índices do Condomínio
-            </h2>
-
-            <div className="space-y-3">
-              <div>
-                <div className="flex justify-between text-xs font-semibold mb-1">
-                  <span>Manutenção Predial</span>
-                  <span className="text-blue-600 font-bold">45%</span>
-                </div>
-                <div className="w-full h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                  <div className="w-[45%] h-full bg-blue-600 rounded-full" />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs font-semibold mb-1">
-                  <span>Regras & Silêncio</span>
-                  <span className="text-amber-600 font-bold">30%</span>
-                </div>
-                <div className="w-full h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                  <div className="w-[30%] h-full bg-amber-500 rounded-full" />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs font-semibold mb-1">
-                  <span>Segurança & Portaria</span>
-                  <span className="text-emerald-600 font-bold">15%</span>
-                </div>
-                <div className="w-full h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                  <div className="w-[15%] h-full bg-emerald-500 rounded-full" />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs font-semibold mb-1">
-                  <span>Limpeza & Áreas Comuns</span>
-                  <span className="text-purple-600 font-bold">10%</span>
-                </div>
-                <div className="w-full h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                  <div className="w-[10%] h-full bg-purple-500 rounded-full" />
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Box de Comunicados Recentes */}
           <div className="bg-white dark:bg-[#162238] rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-6 space-y-4">
             <div className="flex items-center justify-between">
