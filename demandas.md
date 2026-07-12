@@ -38,23 +38,27 @@ livro de ocorrencias -> feito de verdade (Postgres/Neon)
 segunda via de boletos -> não existe (financeiro do morador é 100% novo, do zero)
 aviso de encomendas -> feito de verdade (Postgres/Neon)
 dashboard do síndico -> feito, ligado a dados reais; indicadores fixos sem dado real ("Resolução com IA", "Índices do Condomínio") foram removidos por enquanto
-area do porteiro -> versão simples existe (só visitantes); a tela nova do Stitch (QR code, botão de pânico, livro de turno) ainda não foi construída
-area do morador -> versão simples existe; financeiro e enquete do Stitch ainda não
-Controle de Visitantes com QR code -> registro de visitante existe; geração/leitura de QR code ainda não
+area do porteiro -> visitantes manuais (registro sem QR) ainda em memória; leitor de câmera pro QR Code já existe (ver abaixo); botão de pânico e livro de turno do Stitch ainda não foram construídos
+area do morador -> versão simples existe; QR Code de liberação de visita já é real (ver abaixo); financeiro e enquete do Stitch ainda não
+Controle de Visitantes com QR code -> FEITO (tabela liberacoes_visita no Neon, geração de código+imagem real, validação com expiração/reuso testada). Falta só testar o escaneamento com câmera de verdade num dispositivo físico — não foi possível testar isso no ambiente onde foi construído (sem hardware de câmera)
 notificação de email e whatsapp -> não existe ainda
 aplicação pwa p celular -> não existe ainda
+Autenticação -> FEITO (login real com bcrypt, sessão JWT em cookie httpOnly, todas as rotas do dashboard protegidas via frontend/src/proxy.ts). Falta proteger as rotas de API diretamente (hoje só as páginas são barradas)
 
 Infra que não estava na lista original mas virou pré-requisito de tudo isso:
 - Banco de dados Postgres real (Neon), configurado local e na Vercel
 - Deploy testável remotamente (celular/PC): https://sistemacondominio-nine.vercel.app
-- Autenticação ainda é cosmética (sem proteção de rota real) — não endereçado ainda
 
-Pendências restantes (o que falta atacar agora):
-1. Enquetes (mural do síndico)
-2. Financeiro do morador / segunda via de boleto (novo, do zero)
-3. Geração/leitura de QR Code (visitantes)
+Pendências restantes (o que falta atacar agora, em ordem sugerida):
+1. Testar o QR Code com câmera real (celular/PC do usuário) — único item bloqueado por falta de hardware de teste
+2. Enquetes (mural do síndico)
+3. Financeiro do morador / segunda via de boleto (novo, do zero)
 4. Botão de pânico (portaria)
 5. Livro de turno da portaria (diferente do livro de ocorrências)
-6. Notificação por e-mail e WhatsApp
-7. Aplicação PWA para celular
-8. Autenticação de verdade (guard de rotas, sem credenciais hardcoded)
+6. Migrar /api/visitantes (registro manual) pro Postgres — ainda em memória
+7. Proteger rotas de API diretamente no proxy.ts (hoje só as páginas são protegidas)
+8. Notificação por e-mail e WhatsApp
+9. Aplicação PWA para celular
+10. Resolver DATABASE_URL no ambiente Preview da Vercel (hoje só em Production)
+
+Nota para quem continuar (ex.: outra ferramenta de IA como o Antigravity): o arquivo CLAUDE.md na raiz tem o contexto técnico completo — arquitetura, bugs encontrados e corrigidos (isolamento de módulo por rota, TIMESTAMP vs TIMESTAMPTZ), e detalhes de cada decisão. Leia ele antes de mexer em qualquer coisa.

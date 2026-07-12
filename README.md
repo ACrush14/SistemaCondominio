@@ -90,7 +90,13 @@ O **CondoManage** é uma solução de gestão condominial full-stack de última 
 
 ---
 
-### 🌙 5. Design Premium com Modo Claro e Modo Escuro
+### 🔐 5. Autenticação Real & Liberação de Visitantes por QR Code
+- **Login de verdade**: senha conferida com `bcrypt` contra o Postgres, sessão via JWT em cookie `httpOnly` — nenhuma tela do dashboard é acessível sem login.
+- **QR Code de Acesso Rápido**: o morador gera um código de liberação (validade 24h) na Área do Morador; a Portaria escaneia com a câmera do dispositivo pra validar e liberar a entrada.
+
+---
+
+### 🌙 6. Design Premium com Modo Claro e Modo Escuro
 - **Dark Mode Elegante**: Transições suaves (`globals.css`) com paleta de cores *Slate/Navy* profunda (`#0b1323`), cartões translúcidos e alta legibilidade.
 - **Alternador Inteligente no Menu Lateral**: Botão interativo no rodapé da barra lateral exibindo o status atual do tema.
 
@@ -112,9 +118,9 @@ O **CondoManage** é uma solução de gestão condominial full-stack de última 
 
 > **Nota sobre o estado atual da arquitetura:** o deploy na Vercel builda apenas a pasta `frontend/` (ver `vercel.json`), então o backend Express acima **não roda em produção hoje**. Quem realmente atende as requisições do app — em dev e no deploy — são as rotas do Next.js em `frontend/src/app/api/*`.
 >
-> **Persistência (migração em andamento):**
-> - ✅ **Moradores & Usuários** — já grava num Postgres real, gerenciado pelo [Neon](https://neon.tech), configurado como `DATABASE_URL` tanto localmente (`frontend/.env.local`) quanto no ambiente de Produção da Vercel. Senhas com hash via `bcryptjs`.
-> - ⏳ **Reservas, Ocorrências, Encomendas e Área do Morador** — ainda em memória (`frontend/src/lib/store/`); funcionam, mas os dados resetam de tempos em tempos. Migração para o mesmo Postgres é o próximo passo.
+> **Persistência:** Usuários/Moradores, Ocorrências, Reservas, Comunicados, Encomendas e Liberações de Visita (QR Code) já gravam num Postgres real, gerenciado pelo [Neon](https://neon.tech). Só o registro manual de visitantes pela portaria (`/api/visitantes`) ainda está em memória.
+>
+> **Autenticação:** login real (senha conferida com `bcrypt` contra o Postgres) e sessão via JWT em cookie `httpOnly` — todas as telas do dashboard exigem login, sem exceção.
 >
 > Detalhes completos (schema, decisões, avisos de segurança) em [`CLAUDE.md`](CLAUDE.md).
 

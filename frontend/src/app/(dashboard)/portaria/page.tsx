@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { Html5QrcodeScanner } from "html5-qrcode";
 
 interface Visitante {
   id: string;
@@ -16,6 +17,54 @@ export default function PortariaPage() {
   const [documento, setDocumento] = useState("");
   const [placa, setPlaca] = useState("");
   const [unidade, setUnidade] = useState("");
+
+  const [scannerAtivo, setScannerAtivo] = useState(false);
+  const [resultadoScan, setResultadoScan] = useState<
+    { tipo: "sucesso" | "erro"; mensagem: string } | null
+  >(null);
+
+  const validarCodigo = useCallback(async (codigo: string) => {
+    try {
+      const res = await fetch("/api/condominio/visitas/validar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codigo }),
+      });
+      const dados = await res.json();
+
+      if (!res.ok) {
+        setResultadoScan({ tipo: "erro", mensagem: dados.erro || "Código inválido." });
+        return;
+      }
+
+      setResultadoScan({
+        tipo: "sucesso",
+        mensagem: `Acesso liberado: ${dados.visitante.nome_visitante || "Visitante"} (${dados.visitante.unidade})`,
+      });
+    } catch (_err) {
+      setResultadoScan({ tipo: "erro", mensagem: "Erro ao validar o código." });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!scannerAtivo) return;
+
+    const scanner = new Html5QrcodeScanner("leitor-qr", { fps: 10, qrbox: 250 }, false);
+
+    scanner.render(
+      (codigoLido) => {
+        scanner.pause(true);
+        validarCodigo(codigoLido).finally(() => {
+          setTimeout(() => scanner.resume(), 3000);
+        });
+      },
+      () => {}
+    );
+
+    return () => {
+      scanner.clear().catch(() => {});
+    };
+  }, [scannerAtivo, validarCodigo]);
 
   const buscarVisitantes = useCallback(async () => {
     try {
@@ -60,6 +109,36 @@ export default function PortariaPage() {
           + Registrar
         </button>
       </div>
+
+      <div className="bg-white shadow rounded-2xl p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-[#0A2540]">Escanear Acesso</h2>
+          <button
+            onClick={() => {
+              setScannerAtivo(!scannerAtivo);
+              setResultadoScan(null);
+            }}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
+          >
+            {scannerAtivo ? "Parar Câmera" : "Ativar Câmera"}
+          </button>
+        </div>
+
+        {resultadoScan && (
+          <div
+            className={`p-3 rounded-xl text-sm font-medium ${
+              resultadoScan.tipo === "sucesso"
+                ? "bg-emerald-50 text-emerald-800"
+                : "bg-red-50 text-red-800"
+            }`}
+          >
+            {resultadoScan.mensagem}
+          </div>
+        )}
+
+        {scannerAtivo && <div id="leitor-qr" />}
+      </div>
+
       <table className="w-full bg-white shadow rounded">
         <thead>
           <tr className="border-b">

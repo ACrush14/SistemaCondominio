@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import QRCode from "qrcode";
 
 const UNIDADE_LOGADA = "Apto 301"; // TODO: substituir pela unidade do usuário autenticado quando o login real estiver ligado
 
@@ -16,8 +17,45 @@ export default function AreaMoradorPage() {
   const [respostaIa, setRespostaIa] = useState("");
   const [carregandoIa, setCarregandoIa] = useState(false);
   const [mostrarQrCode, setMostrarQrCode] = useState(false);
-  const [nomeVisitanteQr, setNomeVisitanteQr] = useState("Carlos Eduardo (Convidado)");
+  const [nomeVisitanteQr, setNomeVisitanteQr] = useState("");
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [gerandoQr, setGerandoQr] = useState(false);
+  const [erroQr, setErroQr] = useState("");
   const [encomendas, setEncomendas] = useState<Encomenda[]>([]);
+
+  const abrirModalQr = () => {
+    setQrDataUrl(null);
+    setErroQr("");
+    setNomeVisitanteQr("");
+    setMostrarQrCode(true);
+  };
+
+  const gerarQrCode = async () => {
+    setGerandoQr(true);
+    setErroQr("");
+    try {
+      const res = await fetch("/api/condominio/visitas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          unidade: UNIDADE_LOGADA,
+          morador: "João (Morador Tailson)",
+          nome_visitante: nomeVisitanteQr || "Convidado",
+        }),
+      });
+      const dados = await res.json();
+      if (!res.ok) {
+        setErroQr(dados.erro || "Erro ao gerar QR Code.");
+        return;
+      }
+      const imagem = await QRCode.toDataURL(dados.codigo);
+      setQrDataUrl(imagem);
+    } catch (_err) {
+      setErroQr("Erro ao gerar QR Code.");
+    } finally {
+      setGerandoQr(false);
+    }
+  };
 
   useEffect(() => {
     fetch(`/api/condominio/encomendas?unidade=${encodeURIComponent(UNIDADE_LOGADA)}`)
@@ -104,7 +142,7 @@ export default function AreaMoradorPage() {
             </div>
           </div>
           <button
-            onClick={() => setMostrarQrCode(!mostrarQrCode)}
+            onClick={abrirModalQr}
             className="w-11 h-11 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-2xl font-bold flex items-center justify-center shadow-sm transition-transform active:scale-95"
           >
             +
@@ -117,20 +155,41 @@ export default function AreaMoradorPage() {
             <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider">
               QR Code de Acesso Rápido (Validade 24h)
             </p>
-            <div className="w-44 h-44 mx-auto bg-gray-900 rounded-xl flex flex-col items-center justify-center text-white p-3 shadow-inner">
-              <span className="text-5xl mb-2">📲</span>
-              <span className="text-[10px] font-mono tracking-widest">
-                CONDO-402-9982
-              </span>
-            </div>
-            <p className="text-xs text-gray-600">
-              Convidado: <strong>{nomeVisitanteQr}</strong>
-            </p>
+
+            {erroQr && (
+              <p className="text-xs font-semibold text-red-600">{erroQr}</p>
+            )}
+
+            {!qrDataUrl ? (
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  value={nomeVisitanteQr}
+                  onChange={(e) => setNomeVisitanteQr(e.target.value)}
+                  placeholder="Nome do convidado"
+                  className="w-full p-3 rounded-xl border border-gray-200 text-sm text-center focus:outline-none focus:border-blue-500"
+                />
+                <button
+                  onClick={gerarQrCode}
+                  disabled={gerandoQr}
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-semibold text-sm transition-colors"
+                >
+                  {gerandoQr ? "Gerando..." : "Gerar QR Code"}
+                </button>
+              </div>
+            ) : (
+              <img
+                src={qrDataUrl}
+                alt="QR Code de acesso"
+                className="w-44 h-44 mx-auto rounded-xl shadow-inner"
+              />
+            )}
+
             <button
               onClick={() => setMostrarQrCode(false)}
               className="text-xs text-red-600 font-semibold hover:underline"
             >
-              Fechar QR Code
+              Fechar
             </button>
           </div>
         )}
