@@ -1,49 +1,37 @@
 import { NextResponse } from "next/server";
+import { pool } from "../../../lib/store/db";
 
-let reservasDB = [
-  {
-    id: "101",
-    area: "Salão de Festas",
-    data_reserva: "2026-10-12",
-    horario: "14:00 - 22:00",
-    horario_inicio: "14:00",
-    horario_fim: "22:00",
-    dia_inteiro: false,
-    convidados: 35,
-    observacao: "Festa de aniversário com música ambiente (caixa de som portátil).",
-    morador: "Carlos Eduardo Prado (Apto 102)",
-    status: "CONFIRMADO",
-  },
-  {
-    id: "102",
-    area: "Churrasqueira",
-    data_reserva: "2026-10-14",
-    horario: "10:00 - Dia Inteiro (23:00)",
-    horario_inicio: "10:00",
-    horario_fim: "23:00 (Dia Inteiro)",
-    dia_inteiro: true,
-    convidados: 15,
-    observacao: "Confraternização familiar. Usar freezer extra da churrasqueira.",
-    morador: "Mariana Vasconcelos (Apto 201)",
-    status: "CONFIRMADO",
-  },
-  {
-    id: "103",
-    area: "Piscina",
-    data_reserva: "2026-10-15",
-    horario: "09:00 - 17:00",
-    horario_inicio: "09:00",
-    horario_fim: "17:00",
-    dia_inteiro: false,
-    convidados: 10,
-    observacao: "Aniversário infantil na área da piscina com salvavidas particular.",
-    morador: "Beatriz Mendonça (Apto 101)",
-    status: "CONFIRMADO",
-  },
-];
+interface ReservaRow {
+  id: number;
+  area: string;
+  data_reserva: string;
+  horario_inicio: string;
+  horario_fim: string;
+  dia_inteiro: boolean;
+  convidados: number;
+  observacao: string | null;
+  morador: string | null;
+  status: string;
+}
+
+function comHorarioExibicao(r: ReservaRow) {
+  return {
+    ...r,
+    horario: r.dia_inteiro
+      ? `${r.horario_inicio} - Dia Inteiro (até 23:00)`
+      : `${r.horario_inicio} - ${r.horario_fim}`,
+  };
+}
 
 export async function GET() {
-  return NextResponse.json(reservasDB);
+  const resultado = await pool.query<ReservaRow>(
+    `SELECT id, area, TO_CHAR(data_reserva, 'YYYY-MM-DD') AS data_reserva,
+            horario_inicio, horario_fim, dia_inteiro, convidados, observacao, morador, status
+     FROM reservas
+     ORDER BY data_reserva ASC, id ASC`
+  );
+
+  return NextResponse.json(resultado.rows.map(comHorarioExibicao));
 }
 
 export async function POST(req: Request) {
@@ -68,33 +56,32 @@ export async function POST(req: Request) {
       );
     }
 
-    const fimFormatado = body.dia_inteiro
-      ? "23:00 (Dia Inteiro)"
-      : body.horario_fim || "22:00";
-    const horarioExibicao = body.dia_inteiro
-      ? `${body.horario_inicio} - Dia Inteiro (até 23:00)`
-      : `${body.horario_inicio} - ${fimFormatado}`;
+    const fimFormatado = body.dia_inteiro ? "23:00" : body.horario_fim || "22:00";
 
-    const novaReserva = {
-      id: String(Date.now()),
-      area: body.area,
-      data_reserva: body.data_reserva,
-      horario: horarioExibicao,
-      horario_inicio: body.horario_inicio,
-      horario_fim: fimFormatado,
-      dia_inteiro: !!body.dia_inteiro,
-      convidados: Number(body.convidados) || 0,
-      observacao: body.observacao || "",
-      morador: "Beatriz Mendonça (Apto 101)",
-      status: "CONFIRMADO",
-    };
+    const resultado = await pool.query<ReservaRow>(
+      `INSERT INTO reservas (area, data_reserva, horario_inicio, horario_fim, dia_inteiro, convidados, observacao, morador)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, area, TO_CHAR(data_reserva, 'YYYY-MM-DD') AS data_reserva,
+                 horario_inicio, horario_fim, dia_inteiro, convidados, observacao, morador, status`,
+      [
+        body.area,
+        body.data_reserva,
+        body.horario_inicio,
+        fimFormatado,
+        !!body.dia_inteiro,
+        Number(body.convidados) || 0,
+        body.observacao || "",
+        "Beatriz Mendonça (Apto 101)",
+      ]
+    );
 
-    reservasDB.push(novaReserva);
-
-    return NextResponse.json({
-      mensagem: "Reserva salva com sucesso na base!",
-      reserva: novaReserva,
-    }, { status: 201 });
+    return NextResponse.json(
+      {
+        mensagem: "Reserva salva com sucesso na base!",
+        reserva: comHorarioExibicao(resultado.rows[0]),
+      },
+      { status: 201 }
+    );
   } catch (_err) {
     return NextResponse.json({ erro: "Erro ao processar reserva." }, { status: 400 });
   }

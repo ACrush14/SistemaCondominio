@@ -1,36 +1,48 @@
 import { NextResponse } from "next/server";
-import { ocorrenciasDB } from "../../../../lib/store/ocorrencias";
+import { pool } from "../../../../lib/store/db";
+
+const SELECT_BASE = `
+  SELECT id, titulo, local, unidade, morador, categoria, status, resumo_ia,
+         TO_CHAR(criado_em, 'DD/MM/YYYY, HH24:MI') AS data
+  FROM ocorrencias
+`;
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const unidade = searchParams.get("unidade");
 
   if (unidade) {
-    const filtradas = ocorrenciasDB.filter((o) => o.unidade === unidade);
-    return NextResponse.json(filtradas);
+    const resultado = await pool.query(
+      `${SELECT_BASE} WHERE unidade = $1 ORDER BY criado_em DESC`,
+      [unidade]
+    );
+    return NextResponse.json(resultado.rows);
   }
 
-  return NextResponse.json(ocorrenciasDB);
+  const resultado = await pool.query(`${SELECT_BASE} ORDER BY criado_em DESC`);
+  return NextResponse.json(resultado.rows);
 }
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const nova = {
-      id: String(Date.now()),
-      titulo: body.titulo || "Nova Ocorrência",
-      local: body.local || "Condomínio",
-      unidade: body.unidade || "-",
-      morador: body.morador || "Morador",
-      status: "EM ANÁLISE" as const,
-      categoria: body.categoria || "GERAL",
-      data: "Hoje, " + new Date().toLocaleTimeString().slice(0, 5),
-      resumo_ia:
-        body.descricao || "Ocorrência registrada no sistema e encaminhada para análise do Síndico.",
-    };
-    ocorrenciasDB.unshift(nova);
-    return NextResponse.json(nova, { status: 201 });
-  } catch (_err) {
+    const resultado = await pool.query(
+      `INSERT INTO ocorrencias (titulo, local, unidade, morador, categoria, resumo_ia)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, titulo, local, unidade, morador, categoria, status, resumo_ia,
+                 TO_CHAR(criado_em, 'DD/MM/YYYY, HH24:MI') AS data`,
+      [
+        body.titulo || "Nova Ocorrência",
+        body.local || "Condomínio",
+        body.unidade || "-",
+        body.morador || "Morador",
+        body.categoria || "GERAL",
+        body.descricao ||
+          "Ocorrência registrada no sistema e encaminhada para análise do Síndico.",
+      ]
+    );
+    return NextResponse.json(resultado.rows[0], { status: 201 });
+  } catch (_erro) {
     return NextResponse.json({ erro: "Erro ao cadastrar ocorrência" }, { status: 400 });
   }
 }

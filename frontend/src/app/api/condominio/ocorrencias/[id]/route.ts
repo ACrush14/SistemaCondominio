@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ocorrenciasDB } from "../../../../../lib/store/ocorrencias";
+import { pool } from "../../../../../lib/store/db";
 
 export async function PATCH(
   req: Request,
@@ -8,14 +8,16 @@ export async function PATCH(
   const { id } = await params;
   const body = await req.json();
 
-  const ocorrencia = ocorrenciasDB.find((o) => o.id === id);
-  if (!ocorrencia) {
+  const resultado = await pool.query(
+    `UPDATE ocorrencias SET status = COALESCE($1, status) WHERE id = $2
+     RETURNING id, titulo, local, unidade, morador, categoria, status, resumo_ia,
+               TO_CHAR(criado_em, 'DD/MM/YYYY, HH24:MI') AS data`,
+    [body.status ?? null, id]
+  );
+
+  if (resultado.rowCount === 0) {
     return NextResponse.json({ erro: "Ocorrência não encontrada." }, { status: 404 });
   }
 
-  if (body.status) {
-    ocorrencia.status = body.status;
-  }
-
-  return NextResponse.json(ocorrencia);
+  return NextResponse.json(resultado.rows[0]);
 }

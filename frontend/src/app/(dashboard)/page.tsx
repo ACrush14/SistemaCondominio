@@ -44,24 +44,14 @@ export default function PainelSindicoPage() {
         setTotalMoradores(data.filter((u) => u.perfil === "MORADOR").length);
       })
       .catch(() => {});
+
+    fetch("/api/condominio/comunicados")
+      .then((res) => res.json())
+      .then((data) => setComunicados(data))
+      .catch(() => {});
   }, []);
 
-  const [comunicados, setComunicados] = useState<Comunicado[]>([
-    {
-      id: "c1",
-      titulo: "Manutenção Preventiva dos Elevadores",
-      conteudo: "Os elevadores sociais passarão por revisão programada nesta quinta-feira.",
-      data: "22 Out",
-      publico: "Todos os moradores",
-    },
-    {
-      id: "c2",
-      titulo: "Limpeza Semestral da Caixa D'Água",
-      conteudo: "Haverá interrupção temporária de água na terça-feira das 08:00 às 12:00.",
-      data: "18 Out",
-      publico: "Todas as torres",
-    },
-  ]);
+  const [comunicados, setComunicados] = useState<Comunicado[]>([]);
 
   const [perguntaIa, setPerguntaIa] = useState("");
   const [respostaIa, setRespostaIa] = useState("");
@@ -113,21 +103,25 @@ export default function PainelSindicoPage() {
     }
   };
 
-  const publicarComunicado = (e: React.FormEvent) => {
+  const publicarComunicado = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!novoTitulo.trim()) return;
-    const novo = {
-      id: String(Date.now()),
-      titulo: novoTitulo,
-      conteudo: novoConteudo,
-      data: "Hoje",
-      publico: "Todos os moradores",
-    };
-    setComunicados([novo, ...comunicados]);
-    setModalComunicado(false);
-    setNovoTitulo("");
-    setNovoConteudo("");
-    setMensagemAviso("Comunicado publicado para todos os moradores!");
+
+    try {
+      const res = await fetch("/api/condominio/comunicados", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ titulo: novoTitulo, conteudo: novoConteudo }),
+      });
+      const novo = await res.json();
+      setComunicados([novo, ...comunicados]);
+      setModalComunicado(false);
+      setNovoTitulo("");
+      setNovoConteudo("");
+      setMensagemAviso("Comunicado publicado para todos os moradores!");
+    } catch (_err) {
+      setMensagemAviso("Não foi possível publicar o comunicado.");
+    }
   };
 
   return (
