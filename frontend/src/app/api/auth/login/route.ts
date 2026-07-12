@@ -1,89 +1,60 @@
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { pool } from "../../../../lib/store/db";
 
 export async function POST(req: Request) {
   try {
     const { email, senha } = await req.json();
-
     const emailLimpo = (email || "").trim().toLowerCase();
-    const senhaLimpa = (senha || "").trim();
 
-    // Credencial Oficial do Morador João
-    if (emailLimpo === "joao@tailson.com" && senhaLimpa === "joaodelas") {
-      return NextResponse.json({
-        mensagem: "Login realizado com sucesso como Morador!",
-        token: "jwt-token-morador-joao-tailson-2026",
-        usuario: {
-          id: "100",
-          nome: "João (Morador Tailson)",
-          email: "joao@tailson.com",
-          role: "MORADOR",
-          perfil: "MORADOR",
-          unidade: "Apto 301",
-        },
-      });
+    const resultado = await pool.query(
+      "SELECT id, nome, email, senha_hash, perfil, unidade FROM usuarios WHERE email = $1",
+      [emailLimpo]
+    );
+    const usuario = resultado.rows[0];
+
+    if (!usuario) {
+      return NextResponse.json({ erro: "Email ou senha incorretos." }, { status: 401 });
     }
 
-    // Credencial Oficial do Síndico
-    if (
-      emailLimpo.includes("sindico") ||
-      emailLimpo.includes("anderson") ||
-      (emailLimpo === "admin@condominio.com" && senhaLimpa === "admin")
-    ) {
-      return NextResponse.json({
-        mensagem: "Login realizado com sucesso como Síndico!",
-        token: "jwt-token-sindico-anderson-2026",
-        usuario: {
-          id: "1",
-          nome: "Anderson de Lima — Síndico",
-          email: emailLimpo,
-          role: "SINDICO",
-          perfil: "SINDICO",
-          unidade: "Administração (Apto 501)",
-        },
-      });
+    const senhaValida = await bcrypt.compare(senha || "", usuario.senha_hash);
+    if (!senhaValida) {
+      return NextResponse.json({ erro: "Email ou senha incorretos." }, { status: 401 });
     }
 
-    // Credencial Oficial do Porteiro
-    if (emailLimpo.includes("porteiro") || emailLimpo.includes("fulano")) {
-      return NextResponse.json({
-        mensagem: "Login realizado com sucesso como Porteiro!",
-        token: "jwt-token-porteiro-fulano-2026",
-        usuario: {
-          id: "2",
-          nome: "Fulano Alterado — Porteiro",
-          email: emailLimpo,
-          role: "PORTEIRO",
-          perfil: "PORTEIRO",
-          unidade: "Portaria Principal",
-        },
-      });
-    }
+    const token = jwt.sign(
+      {
+        id: usuario.id,
+        nome: usuario.nome,
+        perfil: usuario.perfil,
+        unidade: usuario.unidade,
+      },
+      process.env.JWT_SECRET!,
+      { expiresIn: "1d" }
+    );
 
-    // Para qualquer morador ou teste, se colocar joao@tailson.com mas errar a senha
-    if (emailLimpo === "joao@tailson.com" && senhaLimpa !== "joaodelas") {
-      return NextResponse.json(
-        { erro: "Senha incorreta para joao@tailson.com" },
-        { status: 401 }
-      );
-    }
-
-    // Fallback amigável para permitir teste
-    return NextResponse.json({
-      mensagem: "Login efetuado com sucesso!",
-      token: "jwt-token-demo-2026",
+    const resposta = NextResponse.json({
+      mensagem: "Login realizado com sucesso!",
       usuario: {
-        id: String(Date.now()),
-        nome: emailLimpo.split("@")[0].toUpperCase(),
-        email: emailLimpo,
-        role: "MORADOR",
-        perfil: "MORADOR",
-        unidade: "Apto 101",
+        id: usuario.id,
+        nome: usuario.nome,
+        email: usuario.email,
+        perfil: usuario.perfil,
+        unidade: usuario.unidade,
       },
     });
-  } catch (_err) {
-    return NextResponse.json(
-      { erro: "Erro ao processar login." },
-      { status: 500 }
-    );
+
+    resposta.cookies.set("sessao", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24,
+      path: "/",
+    });
+
+    return resposta;
+  } catch (_erro) {
+    return NextResponse.json({ erro: "Erro ao processar login." }, { status: 500 });
   }
 }

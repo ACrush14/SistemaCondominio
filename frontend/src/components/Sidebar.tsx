@@ -1,9 +1,16 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 export function Sidebar() {
   const [temaEscuro, setTemaEscuro] = useState(false);
+  const router = useRouter();
+
+  const sair = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+  };
 
   // Verifica qual tema estava salvo quando a página carrega
   useEffect(() => {
@@ -96,7 +103,10 @@ export function Sidebar() {
           </span>
         </button>
 
-        <button className="w-full text-left px-4 py-2 hover:bg-white/10 rounded-lg transition-all text-sm font-medium">
+        <button
+          onClick={sair}
+          className="w-full text-left px-4 py-2 hover:bg-white/10 rounded-lg transition-all text-sm font-medium"
+        >
           Sair do Sistema
         </button>
       </div>
