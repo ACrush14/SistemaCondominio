@@ -314,6 +314,36 @@ export default function PortariaPage() {
             <span>BOTÃO DE PÂNICO</span>
           </button>
 
+          {/* BOTÃO DISPARAR AVISO E-MAIL & WHATSAPP */}
+          <button
+            onClick={async () => {
+              const destinatario = prompt("Nome do Morador/Unidade (ex: João Apto 301):", "João (Apto 301)");
+              if (!destinatario) return;
+              const assunto = prompt("Assunto da Notificação:", "📦 Nova Encomenda Recebida na Portaria");
+              if (!assunto) return;
+              const mensagem = prompt("Mensagem para o morador:", "Olá! Informamos que sua encomenda foi recebida e está disponível na portaria.");
+              if (!mensagem) return;
+
+              await fetch("/api/condominio/notificacoes", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  destinatario_nome: destinatario,
+                  unidade: destinatario,
+                  canal: "WHATSAPP",
+                  contato: "+55 11 98888-7777",
+                  assunto,
+                  mensagem,
+                  tipo_evento: "PORTARIA",
+                }),
+              });
+              alert("✅ Notificação disparada com sucesso via WhatsApp & E-mail!");
+            }}
+            className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold px-4 py-3.5 rounded-2xl shadow-sm text-xs flex items-center gap-2 cursor-pointer transition-all"
+          >
+            <span>📲</span> Avisar Morador (WhatsApp)
+          </button>
+
           <div className="flex items-center gap-3 bg-gray-50 px-4 py-2.5 rounded-2xl border border-gray-200/60">
             <span className="text-lg">👮</span>
             <div>

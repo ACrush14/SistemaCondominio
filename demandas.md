@@ -57,7 +57,7 @@ Pendências restantes (o que falta atacar agora, em ordem sugerida):
 5. Livro de turno da portaria (diferente do livro de ocorrências) — FEITO DE VERDADE (tabela livro_turno_portaria no Postgres/Neon com confirmação individual de ciência por porteiro)
 6. Migrar /api/visitantes (registro manual) pro Postgres — FEITO DE VERDADE (tabela visitantes no Neon)
 7. Proteger rotas de API diretamente no proxy.ts (hoje só as páginas são protegidas)
-8. Notificação por e-mail e WhatsApp
+8. Notificação por e-mail e WhatsApp — FEITO DE VERDADE (tabela notificacoes_enviadas no Neon/Postgres, rotas /api/condominio/notificacoes, botão de disparo rápido na Portaria e Central Interativa de Disparo & Log de Envios no Painel do Síndico)
 9. Aplicação PWA para celular
 10. Resolver DATABASE_URL no ambiente Preview da Vercel (hoje só em Production)
 11. Arquitetura Multi-Condomínio / Multi-Tenant SaaS (tabela de condomínios/prédios e coluna condominio_id em todas as tabelas e rotas para isolar 100% dos dados de moradores, portaria, financeiro, enquetes e ocorrências por prédio)

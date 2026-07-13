@@ -108,6 +108,56 @@ export default function PainelSindicoPage() {
     "Não Aprovar",
   ]);
 
+  // Modal Central de Notificações E-mail & WhatsApp
+  const [modalNotificacao, setModalNotificacao] = useState(false);
+  const [notificacoesLog, setNotificacoesLog] = useState<Array<{ id: number; destinatario_nome: string; canal: string; contato: string; assunto: string; mensagem: string; status: string; enviado_em: string }>>([]);
+  const [notifDestinatario, setNotifDestinatario] = useState("João (Morador Tailson)");
+  const [notifUnidade, setNotifUnidade] = useState("Apto 301");
+  const [notifCanal, setNotifCanal] = useState<"EMAIL" | "WHATSAPP" | "AMBOS">("AMBOS");
+  const [notifContato, setNotifContato] = useState("joao@tailson.com | +55 11 98888-7777");
+  const [notifAssunto, setNotifAssunto] = useState("📢 Aviso Urgente do Condomínio");
+  const [notifMensagem, setNotifMensagem] = useState("");
+  const [enviandoNotif, setEnviandoNotif] = useState(false);
+
+  const carregarNotificacoes = () => {
+    fetch("/api/condominio/notificacoes")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setNotificacoesLog(data);
+      })
+      .catch(() => {});
+  };
+
+  const enviarNotificacao = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!notifMensagem.trim()) return;
+    setEnviandoNotif(true);
+    try {
+      const res = await fetch("/api/condominio/notificacoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          destinatario_nome: notifDestinatario,
+          unidade: notifUnidade,
+          canal: notifCanal,
+          contato: notifContato,
+          assunto: notifAssunto,
+          mensagem: notifMensagem,
+          tipo_evento: "COMUNICADO",
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotificacoesLog(data.notificacoes || []);
+        setNotifMensagem("");
+        setMensagemAviso(`Notificação enviada via ${notifCanal}!`);
+      }
+    } finally {
+      setEnviandoNotif(false);
+    }
+  };
+
+
   const publicarEnquete = async (e: React.FormEvent) => {
     e.preventDefault();
     const opcoesValidas = enqueteOpcoes.map((o) => o.trim()).filter(Boolean);
@@ -274,16 +324,25 @@ export default function PainelSindicoPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => {
+              carregarNotificacoes();
+              setModalNotificacao(true);
+            }}
+            className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm flex items-center gap-2 cursor-pointer"
+          >
+            <span>📲</span> E-mail & WhatsApp
+          </button>
           <button
             onClick={() => setModalEnquete(true)}
-            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm flex items-center gap-2"
+            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm flex items-center gap-2 cursor-pointer"
           >
             <span>📊</span> + Nova Enquete
           </button>
           <button
             onClick={() => setModalComunicado(true)}
-            className="px-5 py-2.5 bg-[#0A2540] dark:bg-blue-600 hover:bg-[#0A2540]/90 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm flex items-center gap-2"
+            className="px-5 py-2.5 bg-[#0A2540] dark:bg-blue-600 hover:bg-[#0A2540]/90 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm flex items-center gap-2 cursor-pointer"
           >
             <span>📢</span> + Novo Comunicado
           </button>
@@ -803,7 +862,7 @@ export default function PainelSindicoPage() {
               <button
                 type="button"
                 onClick={() => setModalEnquete(false)}
-                className="px-5 py-3 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-semibold text-sm"
+                className="px-5 py-3 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-semibold text-sm cursor-pointer"
               >
                 Cancelar
               </button>
@@ -811,6 +870,166 @@ export default function PainelSindicoPage() {
           </form>
         </div>
       )}
+
+      {/* Modal Central de Notificações E-mail & WhatsApp */}
+      {modalNotificacao && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-[#152033] p-6 md:p-8 rounded-3xl shadow-2xl space-y-6 w-full max-w-4xl relative border border-gray-200 dark:border-gray-800 max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setModalNotificacao(false)}
+              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 flex items-center justify-center font-bold text-sm cursor-pointer"
+            >
+              ✕
+            </button>
+
+            <div>
+              <span className="text-xs font-bold text-purple-600 uppercase tracking-wider">
+                Módulo de Comunicação Direta
+              </span>
+              <h3 className="text-2xl font-extrabold text-[#0A2540] dark:text-white">
+                📲 Central de Notificações (E-mail & WhatsApp)
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Dispare avisos instantâneos e acompanhe o histórico real de envios no PostgreSQL.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Formulário de Disparo */}
+              <form onSubmit={enviarNotificacao} className="space-y-4 bg-gray-50 dark:bg-[#111a2e] p-5 rounded-2xl border border-gray-200/60 dark:border-gray-800">
+                <h4 className="font-bold text-sm text-[#0A2540] dark:text-white">✉️ Disparar Nova Notificação</h4>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">
+                    Canal de Envio
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(["EMAIL", "WHATSAPP", "AMBOS"] as const).map((c) => (
+                      <button
+                        type="button"
+                        key={c}
+                        onClick={() => setNotifCanal(c)}
+                        className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          notifCanal === c
+                            ? "bg-purple-600 text-white shadow-sm"
+                            : "bg-white dark:bg-[#152033] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
+                        }`}
+                      >
+                        {c === "EMAIL" ? "📧 E-mail" : c === "WHATSAPP" ? "💬 WhatsApp" : "📲 Ambos"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">Destinatário</label>
+                    <input
+                      value={notifDestinatario}
+                      onChange={(e) => setNotifDestinatario(e.target.value)}
+                      className="w-full p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#152033] text-xs font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">Unidade</label>
+                    <input
+                      value={notifUnidade}
+                      onChange={(e) => setNotifUnidade(e.target.value)}
+                      className="w-full p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#152033] text-xs font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">E-mail / WhatsApp</label>
+                  <input
+                    value={notifContato}
+                    onChange={(e) => setNotifContato(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#152033] text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">Assunto</label>
+                  <input
+                    value={notifAssunto}
+                    onChange={(e) => setNotifAssunto(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#152033] text-xs font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">Mensagem</label>
+                  <textarea
+                    rows={3}
+                    value={notifMensagem}
+                    onChange={(e) => setNotifMensagem(e.target.value)}
+                    placeholder="Ex: Informamos que a assembleia geral foi reagendada para o dia 20 às 19h..."
+                    className="w-full p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#152033] text-xs"
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={enviandoNotif}
+                  className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-bold py-3 rounded-xl text-xs transition-all shadow-sm cursor-pointer"
+                >
+                  {enviandoNotif ? "Disparando..." : "⚡ Disparar Notificação Agora"}
+                </button>
+              </form>
+
+              {/* Log de Auditoria no Banco */}
+              <div className="space-y-3">
+                <h4 className="font-bold text-sm text-[#0A2540] dark:text-white flex items-center justify-between">
+                  <span>📜 Log de Envios (PostgreSQL)</span>
+                  <span className="text-xs bg-purple-100 text-purple-800 font-extrabold px-2.5 py-0.5 rounded-full">
+                    {notificacoesLog.length} registros
+                  </span>
+                </h4>
+
+                <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                  {notificacoesLog.map((n) => (
+                    <div
+                      key={n.id}
+                      className="p-3.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-[#111a2e] space-y-1"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-xs text-[#0A2540] dark:text-white">
+                          {n.assunto}
+                        </span>
+                        <span
+                          className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase ${
+                            n.canal === "EMAIL"
+                              ? "bg-blue-100 text-blue-800"
+                              : n.canal === "WHATSAPP"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-purple-100 text-purple-800"
+                          }`}
+                        >
+                          {n.canal === "EMAIL"
+                            ? "📧 E-MAIL"
+                            : n.canal === "WHATSAPP"
+                            ? "💬 WHATSAPP"
+                            : "📲 AMBOS"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600 dark:text-gray-300 line-clamp-2">
+                        {n.mensagem}
+                      </p>
+                      <div className="flex items-center justify-between text-[10px] text-gray-400 pt-1 border-t border-gray-100 dark:border-gray-800">
+                        <span>Para: <strong>{n.destinatario_nome}</strong></span>
+                        <span>Enviado em: {n.enviado_em}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
