@@ -262,6 +262,30 @@ Se você é o **Claude** ou outro assistente assumindo este projeto, aqui está 
 12. **Aplicação PWA**: Instalável em celular/desktop com `manifest.json` e Service Worker (`sw.js`).
 13. **Multi-Condomínio SaaS** (`condominios`): Suporte a múltiplos edifícios com rotas `/api/condominios` e seletor ativo no dashboard.
 
+---
+
+## IA de verdade via Google Gemini (2026-07-13)
+
+Antes desta sessão, os "3 pontos de IA" do sistema eram só decoração: `resumo_ia` das ocorrências era o próprio texto digitado pelo morador sem nenhum processamento; a "IA Mania" (assistente de reserva da Área do Morador) era um `if/else`/regex batendo em palavras-chave fixas; e o "Assistente Executivo IA" do Síndico chamava um endpoint Express morto (`http://localhost:3333/api/condominio/ia-sindico`, que nunca existiu em produção) e sempre caía numa resposta hardcoded fixa no `catch`. Nada disso era descrito como "fake" no código — só descobri comparando o que a UI prometia com o que a rota realmente fazia.
+
+**Todos os 3 agora usam a API real do Google Gemini** (`@google/genai`, modelo `gemini-2.5-flash`), via um helper compartilhado:
+
+- **`frontend/src/lib/gemini.ts`**: cliente `GoogleGenAI` único (`process.env.GEMINI_API_KEY`). Duas funções exportadas: `perguntarGemini(prompt, instrucaoSistema?)` retorna texto livre; `perguntarGeminiJSON<T>(prompt, instrucaoSistema, schema)` força saída JSON estruturada via `config.responseMimeType: "application/json"` + `config.responseSchema`. Ao contrário do `db.ts`, **não precisa de `globalThis`** — criar o cliente Gemini é uma operação leve e sem estado (não é uma pool de conexão), então cada rota ter sua própria instância não é um problema.
+- **Escolha do modelo, por tentativa e erro**: `gemini-flash-latest` deu 503 (sobrecarregado, transitório); `gemini-2.0-flash` deu 429 com `"limit": 0` (cota zero estrutural pra esse projeto/modelo no Google Cloud, não é transitório); `gemini-1.5-flash` e `gemini-2.5-flash-lite` deram 404 (descontinuados/indisponíveis pra contas novas). **`gemini-2.5-flash` funciona** e é o único usado hoje. Se voltar a dar erro de cota/modelo, tente outro da família `2.5`.
+
+### 1. Resumo de Ocorrências (`frontend/src/app/api/condominio/ocorrencias/route.ts`)
+No `POST`, se `body.descricao` existir, chama `perguntarGemini(descricao, INSTRUCAO_RESUMO)` pra gerar um resumo profissional de até 2 frases. Se a chamada ao Gemini falhar por qualquer motivo, cai de volta pro texto original do morador (nunca quebra o cadastro da ocorrência por causa da IA). Testado com um relato de vazamento na garagem — resumo gerado ficou correto e bem escrito.
+
+### 2. IA Mania (`frontend/src/app/api/condominio/ia-mania/route.ts`)
+Reescrita inteira, trocando o regex por `perguntarGeminiJSON` com um schema estruturado (`RespostaMania`: `reserva_intencao`, `resposta_mania`, `dados_reserva` opcional com `area`/`data_reserva`/`horario_inicio`/`horario_fim`/`convidados`/`observacao`). A instrução de sistema (`instrucaoSistema()`) injeta a data de hoje (pra resolver "dia 25" ou "daqui a duas semanas" em datas absolutas) e fatos fixos do condomínio (quem é o síndico/porteiro, horário da piscina, regras de mudança, antecedência de reserva). Testado com frases bem coloquiais ("umas 20 pessoas", "começando de manhã bem cedo tipo 9h") — extraiu área/data/horário/convidados corretamente e não inventou observação quando não havia nenhuma.
+
+### 3. Assistente Executivo IA do Síndico (`frontend/src/app/api/condominio/ia-sindico/route.ts` — rota nova, criada nesta sessão)
+Antes chamava `http://localhost:3333/...` (Express morto) direto do componente `frontend/src/app/(dashboard)/page.tsx` (`perguntarAssistenteIa`) — nunca funcionava em lugar nenhum, sempre caía no `catch` com uma frase hardcoded ("2 ocorrências exigem ação... taxa de resolução 92%..."). Corrigido em duas pontas:
+- **Rota nova no Next.js**: busca em paralelo (`Promise.all`) ocorrências com `status != 'RESOLVIDO'`, alertas de `alertas_panico` com `status = 'ATIVO'` e encomendas com `status != 'ENTREGUE'`, monta um resumo em texto desses dados reais, e manda pro Gemini junto com a pergunta do síndico. A instrução de sistema pede resposta objetiva (até 4 frases), baseada só nos dados fornecidos, e prioriza sempre alertas de pânico ativos como mais urgentes.
+- **`page.tsx`**: `perguntarAssistenteIa` agora chama a rota relativa `/api/condominio/ia-sindico` (não mais `localhost:3333`), e o fallback de erro agora é uma mensagem honesta de falha (não mais uma "análise" fake e hardcoded).
+- **Testado**: com o banco vazio de pendências, respondeu corretamente "não há prioridades urgentes". Depois, criando de propósito uma ocorrência de vazamento e um alerta de pânico de princípio de incêndio, a IA respondeu priorizando corretamente o alerta de pânico acima da ocorrência de manutenção — confirmando que ela realmente lê e raciocina sobre os dados atuais do Postgres, não é só um texto solto. Os dados de teste foram apagados do Neon depois.
+
+**Variável de ambiente nova**: `GEMINI_API_KEY` em `frontend/.env.local` (local). **Ainda falta adicionar no ambiente Production da Vercel** (`vercel env add GEMINI_API_KEY`) antes do próximo deploy — sem isso, as 3 funcionalidades de IA vão quebrar em produção (vão cair nos fallbacks/erros, não vão crashar o app, mas não vão funcionar de verdade).
 
 
 
