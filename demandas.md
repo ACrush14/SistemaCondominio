@@ -29,22 +29,22 @@ https://stitch.withgoogle.com/projects/5223853060240692870?pli=1
 
 Status (atualizado em 2026-07-13):
 
-⚠️ Aviso importante: as linhas abaixo marcadas "FEITO DE VERDADE" foram implementadas pelo Antigravity e auto-relatadas por ele como prontas. Depois do handoff, o Claude auditou especificamente a parte de Autenticação e achou dois problemas de segurança reais (senha do JWT com fallback inseguro/inconsistente, e contas com senha previsível tipo "admin123" auto-criadas e existindo de verdade em produção) — ambos corrigidos, detalhes no CLAUDE.md. Os outros módulos novos (Enquetes, Financeiro, Botão de Pânico, Notificações, PWA, Multi-Tenant) compilam sem erro e os arquivos existem, mas **não foram testados função por função nesta auditoria** — trate "FEITO DE VERDADE" nessas linhas como "implementado, mas não confirmado na prática" até alguém realmente clicar em cada botão.
+⚠️ Aviso importante: todos os itens abaixo já foram auditados pelo Claude (não é mais autoavaliação do Antigravity) — cada um foi testado na prática via API, não só lido no código. Detalhes técnicos completos no CLAUDE.md.
 
-Cadastro de Moradores -> feito e testado de ponta a ponta pelo Claude (Postgres real via Neon, senha com hash bcrypt, testado no deploy remoto)
-Reserva de salão/churrasqueira/academia -> feito e testado de ponta a ponta pelo Claude (Postgres/Neon)
-comunicados -> feito e testado de ponta a ponta pelo Claude (Postgres/Neon), tela do síndico já publica e lista de verdade
-enquetes -> implementado pelo Antigravity (Postgres/Neon), NÃO testado nesta auditoria
-livro de ocorrencias -> feito e testado de ponta a ponta pelo Claude (Postgres/Neon)
-segunda via de boletos -> implementado pelo Antigravity (tabela boletos_financeiro), NÃO testado nesta auditoria
-aviso de encomendas -> feito e testado de ponta a ponta pelo Claude (Postgres/Neon)
-dashboard do síndico -> feito e testado de ponta a ponta pelo Claude, ligado a dados reais
-area do porteiro -> visitantes manuais e Livro de Plantão/Botão de Pânico implementados pelo Antigravity, NÃO testados nesta auditoria; leitor de câmera do QR Code implementado e testado pelo Claude (exceto câmera real, ver abaixo)
-area do morador -> QR Code de liberação de visita implementado e testado pelo Claude (exceto câmera real); enquetes/financeiro na tela implementados pelo Antigravity, NÃO testados nesta auditoria
-Controle de Visitantes com QR code -> feito e testado de ponta a ponta pelo Claude (tabela liberacoes_visita, geração de código+imagem real, validação com expiração/reuso testada). Falta só testar o escaneamento com câmera real num dispositivo físico
-notificação de email e whatsapp -> implementado pelo Antigravity, NÃO testado nesta auditoria
-aplicação pwa p celular -> implementado pelo Antigravity, NÃO testado nesta auditoria (não foi confirmado se instala/funciona offline de verdade)
-Autenticação & Segurança de Rotas -> feito pelo Antigravity, auditado e corrigido pelo Claude (2 bugs de segurança reais encontrados e corrigidos — ver CLAUDE.md). Testado de ponta a ponta após a correção: login, sessão, acesso a rota protegida, tudo confirmado em produção
-Arquitetura Multi-Condomínio / Multi-Tenant SaaS -> implementado pelo Antigravity, NÃO testado nesta auditoria (funcionalidade nova, nem estava no roadmap original combinado)
+Cadastro de Moradores -> testado de ponta a ponta (Postgres real via Neon, senha com hash bcrypt, testado no deploy remoto)
+Reserva de salão/churrasqueira/academia -> testado de ponta a ponta (Postgres/Neon)
+comunicados -> testado de ponta a ponta (Postgres/Neon), tela do síndico já publica e lista de verdade
+enquetes -> TESTADO, sem bugs: criar, votar, revotar sem duplicar, bloqueio de voto em enquete encerrada, reabrir, excluir
+livro de ocorrencias -> testado de ponta a ponta (Postgres/Neon)
+segunda via de boletos -> TESTADO, sem bugs: criar boleto, atualização automática pra VENCIDO, marcar como pago
+aviso de encomendas -> testado de ponta a ponta (Postgres/Neon)
+dashboard do síndico -> testado de ponta a ponta, ligado a dados reais
+area do porteiro -> visitantes manuais migrados pro Postgres (confirmado), Livro de Plantão TESTADO sem bugs, Botão de Pânico TESTADO sem bugs; leitor de câmera do QR Code funciona (exceto câmera real, ver abaixo)
+area do morador -> QR Code de liberação de visita testado (exceto câmera real); enquetes e financeiro testados e funcionando
+Controle de Visitantes com QR code -> testado de ponta a ponta (tabela liberacoes_visita, geração de código+imagem real, validação com expiração/reuso testada). Falta só testar o escaneamento com câmera real num dispositivo físico
+notificação de email e whatsapp -> TESTADO: a auditoria/histórico funciona, mas NÃO envia e-mail nem WhatsApp de verdade — é só um registro de "intenção de envio", sem integração real com Twilio/SendGrid/etc
+aplicação pwa p celular -> BUG ENCONTRADO E CORRIGIDO: os ícones do manifest.json (icon-192.png, icon-512.png) não existiam, o que impedia o navegador de oferecer "Instalar App". Ícones criados, testado que carregam certo e o Service Worker registra e ativa
+Autenticação & Segurança de Rotas -> auditado e corrigido (2 bugs de segurança reais encontrados e corrigidos — ver CLAUDE.md). Testado de ponta a ponta após a correção: login, sessão, acesso a rota protegida, tudo confirmado em produção
+Arquitetura Multi-Condomínio / Multi-Tenant SaaS -> TESTADO: a API de listar/criar condomínio funciona, mas NÃO é multi-tenant de verdade — nenhuma outra tabela referencia a qual condomínio pertence, então trocar o "prédio ativo" não isola nem filtra nenhum dado. É uma lista de nomes, não uma arquitetura multi-tenant
 
 Nota para quem continuar (Claude / Antigravity / qualquer IA): o arquivo CLAUDE.md na raiz tem o contexto técnico completo, incluindo a seção "Auditoria e correções de segurança" com os bugs reais encontrados. Antes de confiar que um módulo "está pronto", teste você mesmo — o histórico deste projeto já mostrou duas vezes que autoavaliação sem teste independente escondeu problemas reais.
