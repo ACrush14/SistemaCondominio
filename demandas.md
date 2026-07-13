@@ -53,7 +53,7 @@ Pendências restantes (o que falta atacar agora, em ordem sugerida):
 1. Testar o QR Code com câmera real (celular/PC do usuário) — único item bloqueado por falta de hardware de teste
 2. Enquetes (mural do síndico e morador) — FEITO DE VERDADE
 3. Financeiro do morador / segunda via de boleto — FEITO DE VERDADE (tabela boletos_financeiro no Neon/Postgres com emissão de 2ª via, PIX Copia e Cola, Código de Barras e detalhamento de despesas)
-4. Botão de pânico (portaria)
+4. Botão de pânico (portaria) — FEITO DE VERDADE (tabela alertas_panico no Neon/Postgres com acionamento de 1 clique na Portaria, banner de emergência piscante no Painel do Síndico e confirmação de resolução)
 5. Livro de turno da portaria (diferente do livro de ocorrências) — FEITO DE VERDADE (tabela livro_turno_portaria no Postgres/Neon com confirmação individual de ciência por porteiro)
 6. Migrar /api/visitantes (registro manual) pro Postgres — FEITO DE VERDADE (tabela visitantes no Neon)
 7. Proteger rotas de API diretamente no proxy.ts (hoje só as páginas são protegidas)

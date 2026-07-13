@@ -151,4 +151,17 @@ Capturados com Playwright (instalado temporariamente, script descartado depois �
 - **UI do Morador (`frontend/src/app/(dashboard)/area-morador/page.tsx`)**:
   - Aba interativa `💳 Financeiro & 2ª Via` com KPIs financeiros, faturas listadas e modal de **Emissão de 2ª Via** (detalhamento de despesas, botão para copiar Linha Digitável, botão para copiar PIX Copia e Cola e botão de impressão/salvar PDF).
 
+## Botão de Pânico & Alertas de Emergência (PostgreSQL Real)
+
+- **Tabela `alertas_panico` (Neon Postgres via `frontend/src/lib/store/panicoDb.ts`)**:
+  - Campos: `id`, `porteiro_nome`, `tipo_emergencia`, `localizacao`, `observacao`, `status` (`ATIVO` ou `RESOLVIDO`), `resolvido_por`, `resolvido_em`, `criado_em`.
+- **Endpoints (`/api/condominio/panico`)**:
+  - `GET /api/condominio/panico`: Retorna todos os alertas e contagem `total_ativos`.
+  - `POST /api/condominio/panico`: Aciona um novo alerta de emergência com status `'ATIVO'`.
+  - `PATCH /api/condominio/panico/[id]/resolver`: Encerra o alerta marcando `status = 'RESOLVIDO'`.
+- **UI & Sincronização em Tempo Real**:
+  - **Portaria (`/portaria`)**: Botão vermelho vibrante no cabeçalho com modal para disparo em 1 clique (`⚡ DISPARAR PÂNICO IMEDIATO AGORA`) ou seleção de tipo de ocorrência. Banner ao vivo em todas as telas se houver alerta ativo.
+  - **Dashboard do Síndico (`/`)**: Exibe banner vermelho piscante no topo da tela com botão `✓ Confirmar Atendimento / Resolver Alerta` que encerra a emergência instantaneamente.
+
+
 

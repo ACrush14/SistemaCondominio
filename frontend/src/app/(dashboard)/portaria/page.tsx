@@ -21,9 +21,28 @@ interface RegistroTurno {
   criado_em: string;
 }
 
+interface AlertaPanico {
+  id: number;
+  porteiro_nome: string;
+  tipo_emergencia: string;
+  localizacao: string;
+  observacao: string;
+  status: "ATIVO" | "RESOLVIDO";
+  resolvido_por: string;
+  criado_em: string;
+  resolvido_em: string | null;
+}
+
 export default function PortariaPage() {
-  const [abaAtiva, setAbaAtiva] = useState<"VISITANTES" | "LIVRO_TURNO">("LIVRO_TURNO");
+  const [abaAtiva, setAbaAtiva] = useState<"VISITANTES" | "LIVRO_TURNO" | "PANICO">("LIVRO_TURNO");
   const [nomePorteiroAtual, setNomePorteiroAtual] = useState("Fulano Porteiro");
+
+  // Estado Pânico
+  const [alertasPanico, setAlertasPanico] = useState<AlertaPanico[]>([]);
+  const [modalPanicoAberto, setModalPanicoAberto] = useState(false);
+  const [tipoPanico, setTipoPanico] = useState("🆘 ALERTA GERAL DE PÂNICO");
+  const [obsPanico, setObsPanico] = useState("");
+  const [acionandoPanico, setAcionandoPanico] = useState(false);
 
   // Estado Visitantes / QR Code
   const [visitantes, setVisitantes] = useState<Visitante[]>([]);
@@ -48,6 +67,19 @@ export default function PortariaPage() {
   const [novaDescricao, setNovaDescricao] = useState("");
   const [salvandoTurno, setSalvandoTurno] = useState(false);
 
+  // Busca de Pânico
+  const buscarAlertasPanico = useCallback(async () => {
+    try {
+      const res = await fetch("/api/condominio/panico");
+      if (res.ok) {
+        const dados = await res.json();
+        setAlertasPanico(dados.alertas || []);
+      }
+    } catch (_err) {
+      // ignora
+    }
+  }, []);
+
   // Busca do Livro de Turno
   const buscarLivroTurno = useCallback(async () => {
     try {
@@ -63,9 +95,54 @@ export default function PortariaPage() {
 
   useEffect(() => {
     buscarLivroTurno();
-    const int = setInterval(buscarLivroTurno, 10000);
+    buscarAlertasPanico();
+    const int = setInterval(() => {
+      buscarLivroTurno();
+      buscarAlertasPanico();
+    }, 5000);
     return () => clearInterval(int);
-  }, [buscarLivroTurno]);
+  }, [buscarLivroTurno, buscarAlertasPanico]);
+
+  const acionarBotaoPanico = async (tipoEscolhido?: string) => {
+    setAcionandoPanico(true);
+    try {
+      const res = await fetch("/api/condominio/panico", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          porteiro_nome: nomePorteiroAtual,
+          tipo_emergencia: tipoEscolhido || tipoPanico,
+          localizacao: "Portaria Principal",
+          observacao: obsPanico,
+        }),
+      });
+      if (res.ok) {
+        const dados = await res.json();
+        setAlertasPanico(dados.alertas || []);
+        setModalPanicoAberto(false);
+        setObsPanico("");
+        setAbaAtiva("PANICO");
+      }
+    } finally {
+      setAcionandoPanico(false);
+    }
+  };
+
+  const resolverAlertaPanico = async (id: number) => {
+    try {
+      const res = await fetch(`/api/condominio/panico/${id}/resolver`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resolvido_por: nomePorteiroAtual }),
+      });
+      if (res.ok) {
+        const dados = await res.json();
+        setAlertasPanico(dados.alertas || []);
+      }
+    } catch (_err) {
+      // ignora
+    }
+  };
 
   const registrarNovoTurno = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,7 +187,6 @@ export default function PortariaPage() {
     }
   };
 
-  // Funções de QR e Visitantes
   const validarCodigo = useCallback(async (codigo: string) => {
     try {
       const res = await fetch("/api/condominio/visitas/validar", {
@@ -187,13 +263,40 @@ export default function PortariaPage() {
     filtroPrioridade === "TODAS" ? true : r.prioridade === filtroPrioridade
   );
 
+  const alertasAtivos = alertasPanico.filter((a) => a.status === "ATIVO");
+
   return (
     <div className="p-8 space-y-6 max-w-6xl mx-auto">
-      {/* Cabeçalho principal com identificação do porteiro */}
+      {/* BANNER DE ALERTA ATIVO DE PÂNICO */}
+      {alertasAtivos.length > 0 && (
+        <div className="bg-red-600 text-white p-4 rounded-3xl shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-pulse border-2 border-red-300">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">🚨</span>
+            <div>
+              <p className="font-extrabold text-lg uppercase tracking-wide">
+                ALERTA DE EMERGÊNCIA ATIVO NA PORTARIA!
+              </p>
+              <p className="text-xs text-red-100 font-semibold">
+                {alertasAtivos[0].tipo_emergencia} — Acionado por{" "}
+                <strong>{alertasAtivos[0].porteiro_nome}</strong> em {alertasAtivos[0].criado_em}
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setAbaAtiva("PANICO")}
+            className="bg-white text-red-700 hover:bg-red-50 font-extrabold text-xs px-5 py-3 rounded-2xl shadow-md transition-all shrink-0 cursor-pointer"
+          >
+            Ver Alertas ({alertasAtivos.length})
+          </button>
+        </div>
+      )}
+
+      {/* Cabeçalho Principal */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
         <div>
           <span className="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full mb-2">
-            Módulo de Segurança & Comunicação
+            Módulo de Segurança & Portaria
           </span>
           <h1 className="text-3xl font-extrabold text-[#0A2540]">Central da Portaria</h1>
           <p className="text-sm text-gray-500 mt-1">
@@ -201,24 +304,35 @@ export default function PortariaPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 bg-gray-50 px-4 py-2.5 rounded-2xl border border-gray-200/60">
-          <span className="text-lg">👮</span>
-          <div>
-            <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
-              Porteiro Logado
-            </span>
-            <input
-              type="text"
-              value={nomePorteiroAtual}
-              onChange={(e) => setNomePorteiroAtual(e.target.value)}
-              className="font-bold text-sm text-[#0A2540] bg-transparent focus:outline-none border-b border-transparent focus:border-blue-500 max-w-[150px]"
-            />
+        <div className="flex flex-wrap items-center gap-3">
+          {/* BOTÃO DE PÂNICO GERAL EM DESTAQUE */}
+          <button
+            onClick={() => setModalPanicoAberto(true)}
+            className="bg-red-600 hover:bg-red-700 text-white font-extrabold text-sm px-6 py-3.5 rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2.5 animate-bounce cursor-pointer border-2 border-red-400"
+          >
+            <span className="text-xl">🚨</span>
+            <span>BOTÃO DE PÂNICO</span>
+          </button>
+
+          <div className="flex items-center gap-3 bg-gray-50 px-4 py-2.5 rounded-2xl border border-gray-200/60">
+            <span className="text-lg">👮</span>
+            <div>
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                Porteiro Logado
+              </span>
+              <input
+                type="text"
+                value={nomePorteiroAtual}
+                onChange={(e) => setNomePorteiroAtual(e.target.value)}
+                className="font-bold text-sm text-[#0A2540] bg-transparent focus:outline-none border-b border-transparent focus:border-blue-500 max-w-[150px]"
+              />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Navegação entre Abas */}
-      <div className="flex gap-2 border-b border-gray-200 pb-2">
+      {/* Abas de Navegação */}
+      <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-2">
         <button
           onClick={() => setAbaAtiva("LIVRO_TURNO")}
           className={`px-5 py-3 rounded-2xl font-bold text-sm transition-all flex items-center gap-2.5 cursor-pointer ${
@@ -245,7 +359,115 @@ export default function PortariaPage() {
           <span>📱</span>
           <span>QR Code & Visitantes</span>
         </button>
+
+        <button
+          onClick={() => setAbaAtiva("PANICO")}
+          className={`px-5 py-3 rounded-2xl font-bold text-sm transition-all flex items-center gap-2.5 cursor-pointer ${
+            abaAtiva === "PANICO"
+              ? "bg-red-600 text-white shadow-md"
+              : "bg-white text-red-600 hover:bg-red-50 border border-red-200"
+          }`}
+        >
+          <span>🚨</span>
+          <span>Alertas de Pânico</span>
+          {alertasAtivos.length > 0 && (
+            <span className="bg-white text-red-600 text-xs px-2 py-0.5 rounded-full font-bold">
+              {alertasAtivos.length}
+            </span>
+          )}
+        </button>
       </div>
+
+      {/* ==================== ABA PÂNICO & EMERGÊNCIAS ==================== */}
+      {abaAtiva === "PANICO" && (
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-red-600">🚨 Histórico de Emergências & Pânico</h2>
+              <p className="text-xs text-gray-500 mt-1">
+                Todas as emergências são gravadas de forma permanente no PostgreSQL para auditoria.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setModalPanicoAberto(true)}
+              className="bg-red-600 hover:bg-red-700 text-white font-bold text-sm px-5 py-3 rounded-2xl shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <span>+ Acionar Alerta Agora</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4">
+            {alertasPanico.length === 0 ? (
+              <div className="bg-white p-12 rounded-3xl border border-gray-100 text-center space-y-2">
+                <span className="text-4xl">🛡️</span>
+                <p className="font-bold text-[#0A2540]">Nenhuma emergência registrada</p>
+                <p className="text-xs text-gray-400">
+                  O condomínio está seguro e sem ocorrências de pânico acionadas.
+                </p>
+              </div>
+            ) : (
+              alertasPanico.map((a) => (
+                <div
+                  key={a.id}
+                  className={`p-6 rounded-3xl border shadow-sm transition-all space-y-4 ${
+                    a.status === "ATIVO"
+                      ? "border-red-300 bg-red-50/40"
+                      : "border-gray-200 bg-gray-50/40 opacity-80"
+                  }`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <span
+                        className={`text-xs font-extrabold px-3 py-1 rounded-full uppercase ${
+                          a.status === "ATIVO"
+                            ? "bg-red-600 text-white animate-pulse"
+                            : "bg-emerald-100 text-emerald-800"
+                        }`}
+                      >
+                        {a.status === "ATIVO" ? "🚨 EM ANDAMENTO" : "✓ RESOLVIDO"}
+                      </span>
+                      <span className="font-bold text-base text-[#0A2540]">
+                        {a.tipo_emergencia}
+                      </span>
+                    </div>
+                    <span className="text-xs text-gray-400 font-medium">
+                      Acionado em {a.criado_em} por <strong>{a.porteiro_nome}</strong>
+                    </span>
+                  </div>
+
+                  {a.observacao && (
+                    <p className="text-sm text-gray-700 bg-white p-3.5 rounded-xl border border-gray-100">
+                      <strong>Observação:</strong> {a.observacao}
+                    </p>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-gray-100">
+                    <span className="text-xs text-gray-500">
+                      Local: <strong className="text-[#0A2540]">{a.localizacao}</strong>
+                      {a.status === "RESOLVIDO" && (
+                        <span>
+                          {" "}
+                          | Resolvido por <strong>{a.resolvido_por}</strong> em {a.resolvido_em}
+                        </span>
+                      )}
+                    </span>
+
+                    {a.status === "ATIVO" && (
+                      <button
+                        onClick={() => resolverAlertaPanico(a.id)}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm cursor-pointer"
+                      >
+                        ✓ Encerrar / Ocorrência Resolvida
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ==================== ABA LIVRO DE TURNO ==================== */}
       {abaAtiva === "LIVRO_TURNO" && (
@@ -258,17 +480,14 @@ export default function PortariaPage() {
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => setModalTurnoAberto(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-5 py-3 rounded-2xl shadow-sm transition-all flex items-center gap-2 cursor-pointer"
-              >
-                <span>+ Passar Plantão / Novo Registro</span>
-              </button>
-            </div>
+            <button
+              onClick={() => setModalTurnoAberto(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-5 py-3 rounded-2xl shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <span>+ Passar Plantão / Novo Registro</span>
+            </button>
           </div>
 
-          {/* Filtros rápidos por prioridade */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mr-2">
               Filtrar por prioridade:
@@ -293,15 +512,11 @@ export default function PortariaPage() {
             ))}
           </div>
 
-          {/* Lista dos registros de turno */}
           <div className="grid grid-cols-1 gap-4">
             {registrosFiltrados.length === 0 ? (
               <div className="bg-white p-12 rounded-3xl border border-gray-100 text-center space-y-2">
                 <span className="text-4xl">📖</span>
                 <p className="font-bold text-[#0A2540]">Nenhum registro encontrado</p>
-                <p className="text-xs text-gray-400">
-                  Nenhuma passagem de plantão corresponde ao filtro selecionado.
-                </p>
               </div>
             ) : (
               registrosFiltrados.map((r) => {
@@ -355,20 +570,14 @@ export default function PortariaPage() {
                         <span className="text-xs font-bold text-gray-400">
                           Ciente ({r.lido_por.length}):
                         </span>
-                        {r.lido_por.length === 0 ? (
-                          <span className="text-xs text-gray-400 italic">
-                            Nenhum porteiro assinou ainda
+                        {r.lido_por.map((nome, idx) => (
+                          <span
+                            key={idx}
+                            className="text-xs bg-emerald-50 text-emerald-800 font-semibold px-2.5 py-0.5 rounded-full border border-emerald-200/50"
+                          >
+                            ✓ {nome}
                           </span>
-                        ) : (
-                          r.lido_por.map((nome, idx) => (
-                            <span
-                              key={idx}
-                              className="text-xs bg-emerald-50 text-emerald-800 font-semibold px-2.5 py-0.5 rounded-full border border-emerald-200/50"
-                            >
-                              ✓ {nome}
-                            </span>
-                          ))
-                        )}
+                        ))}
                       </div>
 
                       {!jaLeu ? (
@@ -379,8 +588,8 @@ export default function PortariaPage() {
                           ✓ Confirmar Leitura / Estou Ciente
                         </button>
                       ) : (
-                        <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
-                          ✓ Você já confirmou ciência deste registro
+                        <span className="text-xs font-bold text-emerald-700">
+                          ✓ Você já confirmou ciência
                         </span>
                       )}
                     </div>
@@ -429,14 +638,10 @@ export default function PortariaPage() {
             {scannerAtivo && <div id="leitor-qr" className="rounded-2xl overflow-hidden" />}
           </div>
 
-          {/* Controle Manual */}
           <div className="bg-white shadow-sm rounded-3xl p-6 border border-gray-100 space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold text-[#0A2540]">Registros Manuais de Visitantes</h2>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Visitantes sem QR Code registrados na portaria
-                </p>
               </div>
               <button
                 onClick={() => setModalAberto(true)}
@@ -455,27 +660,102 @@ export default function PortariaPage() {
                 </tr>
               </thead>
               <tbody>
-                {visitantes.length === 0 ? (
-                  <tr>
-                    <td colSpan={3} className="py-8 text-center text-sm text-gray-400">
-                      Nenhum visitante registrado no turno.
+                {visitantes.map((v) => (
+                  <tr key={v.id} className="border-b border-gray-50 text-sm">
+                    <td className="py-3 px-2 font-semibold text-[#0A2540]">{v.nome}</td>
+                    <td className="py-3 px-2 text-gray-600">{v.unidade_destino}</td>
+                    <td className="py-3 px-2">
+                      <span className="font-bold text-xs bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full">
+                        {v.status}
+                      </span>
                     </td>
                   </tr>
-                ) : (
-                  visitantes.map((v) => (
-                    <tr key={v.id} className="border-b border-gray-50 text-sm">
-                      <td className="py-3 px-2 font-semibold text-[#0A2540]">{v.nome}</td>
-                      <td className="py-3 px-2 text-gray-600">{v.unidade_destino}</td>
-                      <td className="py-3 px-2">
-                        <span className="font-bold text-xs bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full">
-                          {v.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== MODAL ACIONAR PÂNICO ==================== */}
+      {modalPanicoAberto && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white p-6 md:p-8 rounded-3xl shadow-2xl space-y-5 w-full max-w-lg relative border-2 border-red-500">
+            <button
+              onClick={() => setModalPanicoAberto(false)}
+              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm cursor-pointer"
+            >
+              ✕
+            </button>
+
+            <div className="text-center space-y-1">
+              <span className="text-4xl">🚨</span>
+              <h3 className="font-extrabold text-2xl text-red-600">ACIONAR BOTÃO DE PÂNICO</h3>
+              <p className="text-xs text-gray-600">
+                O alerta será disparado instantaneamente no banco e notificará a Administração!
+              </p>
+            </div>
+
+            {/* BOTÃO DE 1 CLIQUE IMEDIATO */}
+            <button
+              onClick={() => acionarBotaoPanico("🆘 ALERTA GERAL DE PÂNICO IMEDIATO")}
+              disabled={acionandoPanico}
+              className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-extrabold py-4 rounded-2xl shadow-lg text-base uppercase tracking-wider transition-all cursor-pointer animate-pulse"
+            >
+              {acionandoPanico ? "DISPARANDO ALERTA..." : "⚡ DISPARAR PÂNICO IMEDIATO AGORA"}
+            </button>
+
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-gray-200" />
+              <span className="flex-shrink mx-3 text-xs font-bold text-gray-400 uppercase">
+                Ou selecione o tipo de emergência
+              </span>
+              <div className="flex-grow border-t border-gray-200" />
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1">
+                  Tipo de Ocorrência Grave
+                </label>
+                <select
+                  value={tipoPanico}
+                  onChange={(e) => setTipoPanico(e.target.value)}
+                  className="border border-gray-300 p-3 rounded-xl w-full text-sm font-bold text-[#0A2540] focus:outline-none focus:border-red-500"
+                >
+                  <option value="🚨 INVASÃO / TENTATIVA DE ARROMBAMENTO">
+                    🚨 INVASÃO / TENTATIVA DE ARROMBAMENTO
+                  </option>
+                  <option value="🔥 INCÊNDIO / EMERGÊNCIA MÉDICA">
+                    🔥 INCÊNDIO / EMERGÊNCIA MÉDICA
+                  </option>
+                  <option value="⚠️ CONFUSÃO / EMERGÊNCIA DE SEGURANÇA">
+                    ⚠️ CONFUSÃO / EMERGÊNCIA DE SEGURANÇA
+                  </option>
+                  <option value="🆘 ALERTA GERAL DE PÂNICO">🆘 ALERTA GERAL DE PÂNICO</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1">
+                  Observação / Localização (Opcional)
+                </label>
+                <input
+                  value={obsPanico}
+                  onChange={(e) => setObsPanico(e.target.value)}
+                  placeholder="Ex: Pessoas suspeitas próximas ao portão da garagem 2"
+                  className="border border-gray-300 p-3 rounded-xl w-full text-sm focus:outline-none focus:border-red-500"
+                />
+              </div>
+
+              <button
+                onClick={() => acionarBotaoPanico()}
+                disabled={acionandoPanico}
+                className="w-full bg-[#0A2540] hover:bg-[#0A2540]/90 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-all cursor-pointer"
+              >
+                Registrar Ocorrência Específica
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -485,21 +765,16 @@ export default function PortariaPage() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <form
             onSubmit={registrarNovoTurno}
-            className="bg-white p-6 rounded-3xl shadow-2xl space-y-4 w-full max-w-lg relative border border-gray-100 max-h-[90vh] overflow-y-auto"
+            className="bg-white p-6 rounded-3xl shadow-2xl space-y-4 w-full max-w-lg relative border border-gray-100"
           >
             <button
               type="button"
               onClick={() => setModalTurnoAberto(false)}
-              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm transition-colors"
+              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm"
             >
               ✕
             </button>
-            <div>
-              <h3 className="font-bold text-xl text-[#0A2540]">Passar Plantão / Novo Registro</h3>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Informe o próximo turno sobre chaves, avisos, encomendas ou ocorrências
-              </p>
-            </div>
+            <h3 className="font-bold text-xl text-[#0A2540]">Passar Plantão / Novo Registro</h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -509,24 +784,21 @@ export default function PortariaPage() {
                 <select
                   value={novoTurno}
                   onChange={(e) => setNovoTurno(e.target.value)}
-                  className="border border-gray-200 p-3 rounded-xl w-full text-sm font-semibold focus:outline-none focus:border-blue-500"
+                  className="border border-gray-200 p-3 rounded-xl w-full text-sm font-semibold"
                 >
                   <option value="MANHÃ (06h - 14h)">MANHÃ (06h - 14h)</option>
                   <option value="TARDE (14h - 22h)">TARDE (14h - 22h)</option>
                   <option value="NOITE (22h - 06h)">NOITE (22h - 06h)</option>
                 </select>
               </div>
-
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">
-                  Prioridade do Recado
-                </label>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Prioridade</label>
                 <select
                   value={novaPrioridade}
                   onChange={(e) =>
                     setNovaPrioridade(e.target.value as "NORMAL" | "IMPORTANTE" | "URGENTE")
                   }
-                  className="border border-gray-200 p-3 rounded-xl w-full text-sm font-semibold focus:outline-none focus:border-blue-500"
+                  className="border border-gray-200 p-3 rounded-xl w-full text-sm font-semibold"
                 >
                   <option value="NORMAL">🟢 Normal</option>
                   <option value="IMPORTANTE">🟡 Importante</option>
@@ -536,57 +808,28 @@ export default function PortariaPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">
-                Assunto / Categoria
-              </label>
-              <select
-                value={novoAssunto}
-                onChange={(e) => setNovoAssunto(e.target.value)}
-                className="border border-gray-200 p-3 rounded-xl w-full text-sm font-semibold focus:outline-none focus:border-blue-500"
-              >
-                <option value="PASSAGEM DE PLANTÃO">PASSAGEM DE PLANTÃO</option>
-                <option value="CHAVES & ÁREAS COMUNS">CHAVES & ÁREAS COMUNS</option>
-                <option value="ENCOMENDAS PENDENTES">ENCOMENDAS PENDENTES</option>
-                <option value="AVISOS GERAIS">AVISOS GERAIS</option>
-                <option value="VISITANTE ESPERADO">VISITANTE ESPERADO</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">
-                Descrição do Recado para o Próximo Turno
-              </label>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Descrição</label>
               <textarea
                 rows={4}
                 value={novaDescricao}
                 onChange={(e) => setNovaDescricao(e.target.value)}
-                placeholder="Ex: Chave do salão de festas foi entregue ao Sr. Carlos (Apto 402) às 16h..."
-                className="border border-gray-200 p-3 rounded-xl w-full text-sm focus:outline-none focus:border-blue-500"
+                className="border border-gray-200 p-3 rounded-xl w-full text-sm"
                 required
               />
             </div>
 
-            <div className="flex gap-3 pt-2">
-              <button
-                type="submit"
-                disabled={salvandoTurno}
-                className="flex-1 bg-[#0A2540] hover:bg-[#0A2540]/90 disabled:opacity-50 text-white py-3 rounded-xl font-semibold text-sm transition-all shadow-sm cursor-pointer"
-              >
-                {salvandoTurno ? "Salvando no PostgreSQL..." : "Publicar no Livro de Turno"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setModalTurnoAberto(false)}
-                className="px-5 py-3 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-xl font-semibold text-sm transition-colors"
-              >
-                Cancelar
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={salvandoTurno}
+              className="w-full bg-[#0A2540] text-white py-3 rounded-xl font-semibold text-sm"
+            >
+              {salvandoTurno ? "Salvando..." : "Publicar no Livro de Turno"}
+            </button>
           </form>
         </div>
       )}
 
-      {/* Modal Registrar Visitante Manual */}
+      {/* Modal Visitante Manual */}
       {modalAberto && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <form
@@ -596,51 +839,34 @@ export default function PortariaPage() {
             <button
               type="button"
               onClick={() => setModalAberto(false)}
-              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm transition-colors"
+              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm"
             >
               ✕
             </button>
-            <div>
-              <h3 className="font-bold text-xl text-[#0A2540]">Registrar Entrada</h3>
-              <p className="text-xs text-gray-500 mt-0.5">Autorizar visitante na portaria</p>
-            </div>
+            <h3 className="font-bold text-xl text-[#0A2540]">Registrar Entrada</h3>
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">
                 Nome do Visitante
               </label>
               <input
                 placeholder="Ex: Carlos Eduardo"
-                className="border border-gray-200 p-3 rounded-xl w-full text-sm focus:outline-none focus:border-[#0A2540]"
+                className="border border-gray-200 p-3 rounded-xl w-full text-sm"
                 onChange={(e) => setNome(e.target.value)}
                 required
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">
-                Unidade de Destino
-              </label>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Unidade</label>
               <input
                 placeholder="Ex: Apto 402"
-                className="border border-gray-200 p-3 rounded-xl w-full text-sm focus:outline-none focus:border-[#0A2540]"
+                className="border border-gray-200 p-3 rounded-xl w-full text-sm"
                 onChange={(e) => setUnidade(e.target.value)}
                 required
               />
             </div>
-            <div className="flex gap-3 pt-2">
-              <button
-                type="submit"
-                className="flex-1 bg-[#0A2540] hover:bg-[#0A2540]/90 text-white py-3 rounded-xl font-semibold text-sm transition-colors shadow-sm"
-              >
-                Confirmar
-              </button>
-              <button
-                type="button"
-                onClick={() => setModalAberto(false)}
-                className="px-5 py-3 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-xl font-semibold text-sm transition-colors"
-              >
-                Cancelar
-              </button>
-            </div>
+            <button type="submit" className="w-full bg-[#0A2540] text-white py-3 rounded-xl font-semibold text-sm">
+              Confirmar
+            </button>
           </form>
         </div>
       )}

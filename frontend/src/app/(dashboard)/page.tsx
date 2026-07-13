@@ -45,11 +45,23 @@ export default function PainelSindicoPage() {
   const [totalMoradores, setTotalMoradores] = useState<number | null>(null);
   const [comunicados, setComunicados] = useState<Comunicado[]>([]);
   const [enquetes, setEnquetes] = useState<EnqueteDashboard[]>([]);
+  const [alertasPanico, setAlertasPanico] = useState<{ id: number; porteiro_nome: string; tipo_emergencia: string; criado_em: string; status: string }[]>([]);
 
   const carregarEnquetes = () => {
     fetch("/api/condominio/enquetes")
       .then((res) => res.json())
       .then((data) => setEnquetes(data))
+      .catch(() => {});
+  };
+
+  const carregarPanico = () => {
+    fetch("/api/condominio/panico")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.alertas) {
+          setAlertasPanico(data.alertas.filter((a: any) => a.status === "ATIVO"));
+        }
+      })
       .catch(() => {});
   };
 
@@ -72,6 +84,9 @@ export default function PainelSindicoPage() {
       .catch(() => {});
 
     carregarEnquetes();
+    carregarPanico();
+    const intPanico = setInterval(carregarPanico, 5000);
+    return () => clearInterval(intPanico);
   }, []);
 
   const [perguntaIa, setPerguntaIa] = useState("");
@@ -209,6 +224,35 @@ export default function PainelSindicoPage() {
 
   return (
     <div className="p-4 sm:p-8 space-y-8 bg-neutral-light dark:bg-[#0b1323] min-h-screen text-neutral-dark dark:text-gray-100 transition-colors">
+      {alertasPanico.length > 0 && (
+        <div className="bg-red-600 text-white p-5 rounded-3xl shadow-2xl border-4 border-red-300 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-pulse">
+          <div className="flex items-center gap-3">
+            <span className="text-4xl">🚨</span>
+            <div>
+              <p className="font-extrabold text-xl uppercase tracking-wider">
+                ALERTA MÁXIMO DE EMERGÊNCIA — PORTARIA ACIONOU PÂNICO!
+              </p>
+              <p className="text-sm text-red-100 font-bold mt-0.5">
+                {alertasPanico[0].tipo_emergencia} — Acionado por <strong>{alertasPanico[0].porteiro_nome}</strong> em {alertasPanico[0].criado_em}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={async () => {
+              await fetch(`/api/condominio/panico/${alertasPanico[0].id}/resolver`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ resolvido_por: "Anderson de Lima (Síndico)" }),
+              });
+              carregarPanico();
+            }}
+            className="bg-white text-red-700 hover:bg-red-50 font-extrabold text-xs px-6 py-3.5 rounded-2xl shadow-lg transition-all shrink-0 cursor-pointer"
+          >
+            ✓ Confirmar Atendimento / Resolver Alerta
+          </button>
+        </div>
+      )}
+
       {/* Cabeçalho do Síndico */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-gray-200 dark:border-gray-800 pb-6">
         <div className="flex items-center gap-4">
