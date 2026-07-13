@@ -215,9 +215,19 @@ export default function PortariaPage() {
     const scanner = new Html5QrcodeScanner("leitor-qr", { fps: 10, qrbox: 250 }, false);
     scanner.render(
       (codigoLido) => {
-        scanner.pause(true);
+        try {
+          scanner.pause(true);
+        } catch (_e) {
+          // Leitura veio de um arquivo de imagem (não da câmera ao vivo): não há o que pausar.
+        }
         validarCodigo(codigoLido).finally(() => {
-          setTimeout(() => scanner.resume(), 3000);
+          setTimeout(() => {
+            try {
+              scanner.resume();
+            } catch (_e) {
+              // Idem: sem câmera ativa para retomar.
+            }
+          }, 3000);
         });
       },
       () => {}
