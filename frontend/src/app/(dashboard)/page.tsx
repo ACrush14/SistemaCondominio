@@ -28,9 +28,30 @@ interface Comunicado {
   publico: string;
 }
 
+interface EnqueteDashboard {
+  id: number;
+  titulo: string;
+  descricao: string;
+  opcoes: string[];
+  status: "ATIVA" | "ENCERRADA";
+  criada_por: string;
+  data: string;
+  total_votos: number;
+  votos_por_opcao: number[];
+}
+
 export default function PainelSindicoPage() {
   const [ocorrencias, setOcorrencias] = useState<OcorrenciaDashboard[]>([]);
   const [totalMoradores, setTotalMoradores] = useState<number | null>(null);
+  const [comunicados, setComunicados] = useState<Comunicado[]>([]);
+  const [enquetes, setEnquetes] = useState<EnqueteDashboard[]>([]);
+
+  const carregarEnquetes = () => {
+    fetch("/api/condominio/enquetes")
+      .then((res) => res.json())
+      .then((data) => setEnquetes(data))
+      .catch(() => {});
+  };
 
   useEffect(() => {
     fetch("/api/condominio/ocorrencias")
@@ -49,9 +70,9 @@ export default function PainelSindicoPage() {
       .then((res) => res.json())
       .then((data) => setComunicados(data))
       .catch(() => {});
-  }, []);
 
-  const [comunicados, setComunicados] = useState<Comunicado[]>([]);
+    carregarEnquetes();
+  }, []);
 
   const [perguntaIa, setPerguntaIa] = useState("");
   const [respostaIa, setRespostaIa] = useState("");
@@ -62,6 +83,68 @@ export default function PainelSindicoPage() {
   const [novoTitulo, setNovoTitulo] = useState("");
   const [novoConteudo, setNovoConteudo] = useState("");
   const [mensagemAviso, setMensagemAviso] = useState("");
+
+  // Modal Nova Enquete
+  const [modalEnquete, setModalEnquete] = useState(false);
+  const [enqueteTitulo, setEnqueteTitulo] = useState("");
+  const [enqueteDescricao, setEnqueteDescricao] = useState("");
+  const [enqueteOpcoes, setEnqueteOpcoes] = useState<string[]>([
+    "Aprovar Proposta",
+    "Não Aprovar",
+  ]);
+
+  const publicarEnquete = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const opcoesValidas = enqueteOpcoes.map((o) => o.trim()).filter(Boolean);
+    if (!enqueteTitulo.trim() || opcoesValidas.length < 2) {
+      setMensagemAviso("Preencha o título e pelo menos 2 opções.");
+      return;
+    }
+    try {
+      await fetch("/api/condominio/enquetes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          titulo: enqueteTitulo,
+          descricao: enqueteDescricao,
+          opcoes: opcoesValidas,
+        }),
+      });
+      setModalEnquete(false);
+      setEnqueteTitulo("");
+      setEnqueteDescricao("");
+      setEnqueteOpcoes(["Aprovar Proposta", "Não Aprovar"]);
+      setMensagemAviso("Enquete criada e aberta para votação dos moradores!");
+      carregarEnquetes();
+    } catch (_err) {
+      setMensagemAviso("Erro ao criar enquete.");
+    }
+  };
+
+  const alterarStatusEnquete = async (id: number, statusAtual: string) => {
+    const novoStatus = statusAtual === "ATIVA" ? "ENCERRADA" : "ATIVA";
+    await fetch(`/api/condominio/enquetes/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: novoStatus }),
+    });
+    setEnquetes(
+      enquetes.map((e) =>
+        e.id === id ? { ...e, status: novoStatus as any } : e
+      )
+    );
+    setMensagemAviso(
+      novoStatus === "ENCERRADA"
+        ? "Votação encerrada."
+        : "Votação reaberta aos moradores."
+    );
+  };
+
+  const excluirEnquete = async (id: number) => {
+    await fetch(`/api/condominio/enquetes/${id}`, { method: "DELETE" });
+    setEnquetes(enquetes.filter((e) => e.id !== id));
+    setMensagemAviso("Enquete excluída com sucesso.");
+  };
 
   const resolverOcorrencia = async (id: string) => {
     try {
@@ -148,6 +231,12 @@ export default function PainelSindicoPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setModalEnquete(true)}
+            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm flex items-center gap-2"
+          >
+            <span>📊</span> + Nova Enquete
+          </button>
           <button
             onClick={() => setModalComunicado(true)}
             className="px-5 py-2.5 bg-[#0A2540] dark:bg-blue-600 hover:bg-[#0A2540]/90 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm flex items-center gap-2"
@@ -354,6 +443,107 @@ export default function PainelSindicoPage() {
               ))}
             </div>
           </div>
+
+          {/* Gestão de Enquetes & Votações do Condomínio */}
+          <div className="bg-white dark:bg-[#162238] rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-6 space-y-6">
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4">
+              <div>
+                <h2 className="text-lg font-bold text-[#0A2540] dark:text-white flex items-center gap-2">
+                  <span>📊</span> Enquetes & Votações em Tempo Real
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Consulte os resultados e gerencie votações do condomínio
+                </p>
+              </div>
+              <button
+                onClick={() => setModalEnquete(true)}
+                className="text-xs font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-3.5 py-1.5 rounded-xl transition-colors"
+              >
+                + NOVA ENQUETE
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              {enquetes.map((e) => (
+                <div
+                  key={e.id}
+                  className="p-5 rounded-2xl border border-gray-200 dark:border-gray-700/80 space-y-4 bg-gray-50/50 dark:bg-[#111a2e]"
+                >
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={`text-[10px] font-extrabold px-3 py-1 rounded-full uppercase ${
+                        e.status === "ATIVA"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-amber-100 text-amber-800"
+                      }`}
+                    >
+                      {e.status === "ATIVA" ? "🟢 EM VOTAÇÃO" : "🔒 ENCERRADA"}
+                    </span>
+                    <span className="text-xs text-gray-400 font-medium">
+                      Criada em {e.data} • {e.total_votos} voto(s) registrado(s)
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-base text-[#0A2540] dark:text-white">
+                      {e.titulo}
+                    </h3>
+                    {e.descricao && (
+                      <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                        {e.descricao}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Barras de Progresso e Opções */}
+                  <div className="space-y-3 pt-1">
+                    {e.opcoes.map((opcao, idx) => {
+                      const votos = e.votos_por_opcao[idx] || 0;
+                      const pct =
+                        e.total_votos > 0
+                          ? Math.round((votos / e.total_votos) * 100)
+                          : 0;
+                      return (
+                        <div key={idx} className="space-y-1">
+                          <div className="flex justify-between text-xs font-semibold">
+                            <span className="text-[#0A2540] dark:text-gray-200">
+                              {opcao}
+                            </span>
+                            <span className="text-gray-500 dark:text-gray-400">
+                              {votos} voto(s) ({pct}%)
+                            </span>
+                          </div>
+                          <div className="w-full h-2.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-blue-600 dark:bg-blue-500 rounded-full transition-all duration-500"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-2 border-t border-gray-200/60 dark:border-gray-700/60">
+                    <button
+                      onClick={() => alterarStatusEnquete(e.id, e.status)}
+                      className="px-3.5 py-1.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 text-xs font-bold rounded-xl transition-colors"
+                    >
+                      {e.status === "ATIVA"
+                        ? "🔒 Encerrar Votação"
+                        : "🔓 Reabrir Votação"}
+                    </button>
+                    <button
+                      onClick={() => excluirEnquete(e.id)}
+                      className="px-3.5 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-bold rounded-xl transition-colors"
+                    >
+                      🗑 Excluir
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Coluna da Direita: Comunicados (1 Coluna) */}
@@ -453,6 +643,122 @@ export default function PainelSindicoPage() {
               <button
                 type="button"
                 onClick={() => setModalComunicado(false)}
+                className="px-5 py-3 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-semibold text-sm"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal Nova Enquete */}
+      {modalEnquete && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <form
+            onSubmit={publicarEnquete}
+            className="bg-white dark:bg-[#162238] p-6 rounded-3xl shadow-2xl space-y-4 w-full max-w-lg relative border border-gray-100 dark:border-gray-700 max-h-[90vh] overflow-y-auto"
+          >
+            <button
+              type="button"
+              onClick={() => setModalEnquete(false)}
+              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-gray-600 dark:text-gray-300 flex items-center justify-center font-bold text-sm transition-colors"
+            >
+              ✕
+            </button>
+            <div>
+              <h3 className="font-bold text-xl text-[#0A2540] dark:text-white flex items-center gap-2">
+                <span>📊</span> Criar Nova Enquete
+              </h3>
+              <p className="text-xs text-gray-500">
+                Abra uma votação oficial para todos os moradores participarem
+              </p>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                Título da Enquete *
+              </label>
+              <input
+                required
+                placeholder="Ex: Instalação de câmeras no parquinho"
+                value={enqueteTitulo}
+                onChange={(e) => setEnqueteTitulo(e.target.value)}
+                className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#111a2e] text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                Descrição / Contexto (opcional)
+              </label>
+              <textarea
+                rows={2}
+                placeholder="Explicação detalhada sobre o tema em votação..."
+                value={enqueteDescricao}
+                onChange={(e) => setEnqueteDescricao(e.target.value)}
+                className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#111a2e] text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300">
+                  Opções de Voto * (Mínimo 2)
+                </label>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEnqueteOpcoes([
+                      ...enqueteOpcoes,
+                      `Opção ${enqueteOpcoes.length + 1}`,
+                    ])
+                  }
+                  className="text-xs font-bold text-blue-600 hover:underline"
+                >
+                  + ADICIONAR OPÇÃO
+                </button>
+              </div>
+              <div className="space-y-2">
+                {enqueteOpcoes.map((op, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <input
+                      required
+                      value={op}
+                      onChange={(e) => {
+                        const nov = [...enqueteOpcoes];
+                        nov[idx] = e.target.value;
+                        setEnqueteOpcoes(nov);
+                      }}
+                      placeholder={`Opção ${idx + 1}`}
+                      className="flex-1 p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#111a2e] text-sm focus:outline-none focus:border-blue-500"
+                    />
+                    {enqueteOpcoes.length > 2 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEnqueteOpcoes(
+                            enqueteOpcoes.filter((_, i) => i !== idx)
+                          )
+                        }
+                        className="px-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-bold"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+              <button
+                type="submit"
+                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm shadow-sm"
+              >
+                Abrir Votação
+              </button>
+              <button
+                type="button"
+                onClick={() => setModalEnquete(false)}
                 className="px-5 py-3 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-semibold text-sm"
               >
                 Cancelar

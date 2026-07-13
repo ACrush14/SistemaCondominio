@@ -56,8 +56,24 @@ Fluxo: o morador gera um QR Code (validade 24h) na Área do Morador; o porteiro 
 - **`POST /api/condominio/visitas`** — gera um código aleatório novo com validade de 24h.
 - **`POST /api/condominio/visitas/validar`** — recebe o código lido, confere: não existe (404), já usado (409), expirado (410), ou válido (200, marca como `USADO`).
 - **Gerar a imagem do QR**: biblioteca `qrcode`, função `QRCode.toDataURL(codigo)` chamada no cliente (`area-morador/page.tsx`), renderiza um PNG em base64 direto num `<img>`.
-- **Ler via câmera**: biblioteca `html5-qrcode`, componente `Html5QrcodeScanner` montado numa `<div id="leitor-qr">` (`portaria/page.tsx`). Ele mesmo cuida da permissão de câmera e da interface de escaneamento.
+- Ler via câmera: biblioteca `html5-qrcode`, componente `Html5QrcodeScanner` montado numa `<div id="leitor-qr">` (`portaria/page.tsx`). Ele mesmo cuida da permissão de câmera e da interface de escaneamento.
 - Essa tabela/fluxo é **separado** da tabela/rota antiga `visitantes` (registro manual pelo porteiro, sem QR, ainda em memória — ver seção de Persistência acima).
+
+## Enquetes & Votações em Tempo Real — implementado nesta sessão (2026-07-12)
+
+O módulo de enquetes deixou de ser um mockup visual e agora é integrado com PostgreSQL (Neon).
+
+- **Tabelas `enquetes` e `enquete_votos`** (Neon via `frontend/src/lib/store/enquetesDb.ts`):
+  - `enquetes`: armazena `id`, `titulo`, `descricao`, `opcoes` (em `JSONB`), `status` (`'ATIVA'` ou `'ENCERRADA'`), `criada_por`, e `criado_em` (`TIMESTAMPTZ`).
+  - `enquete_votos`: armazena os votos vinculados por `(enquete_id, unidade)` com constraint de unicidade `UNIQUE(enquete_id, unidade)`.
+- **Rotas de API:**
+  - `GET /api/condominio/enquetes?unidade=X` — retorna a lista de enquetes formatada com contagem total de votos (`total_votos`), votos por opção (`votos_por_opcao`), e o voto registrado pela unidade solicitante (`meu_voto`). Cria automaticamente as tabelas e adiciona enquetes iniciais se o banco estiver vazio (`garantirTabelasEnquetes()`).
+  - `POST /api/condominio/enquetes` — cria uma nova enquete com título, descrição e opções dinâmicas.
+  - `POST /api/condominio/enquetes/votar` — registra ou altera o voto de uma unidade (`INSERT ... ON CONFLICT (enquete_id, unidade) DO UPDATE SET opcao_index = ...`). Bloqueia votação se a enquete estiver `'ENCERRADA'`.
+  - `PATCH / DELETE /api/condominio/enquetes/[id]` — encerra/reabre ou exclui uma enquete.
+- **Frontend Interativo:**
+  - **Dashboard do Síndico (`frontend/src/app/(dashboard)/page.tsx`)**: exibe os resultados parciais/finais em tempo real com barras de progresso percentuais, permite encerrar/reabrir ou excluir enquetes e inclui o modal "+ Nova Enquete" com adição dinâmica de opções.
+  - **Área do Morador (`frontend/src/app/(dashboard)/area-morador/page.tsx`)**: exibe as votações ativas do condomínio, permite votar com 1 clique (com feedback visual da opção votada `✓`) e atualiza os totais e percentuais instantaneamente.
 
 **O que foi testado e o que não foi:**
 - ✅ Geração do código, validação com sucesso, rejeição de código reusado, rejeição de código expirado, rejeição de código inexistente — todos testados via chamada direta à API (`curl`/`fetch`), confirmados no banco.
@@ -105,3 +121,34 @@ O `backend/` (Express) também pode rodar (`cd backend && npm run dev`, porta 33
 ## Prints das telas
 
 Capturados com Playwright (instalado temporariamente, script descartado depois — se precisar gerar novos, reinstale com `npm install -D playwright && npx playwright install chromium`, capture, e desinstale de novo antes de commitar, para não quebrar o build da Vercel). Ficam em `docs/screenshots/`.
+
+## Livro de Plantão da Portaria & Migração de Visitantes Manuais (PostgreSQL Real)
+
+- **Livro de Plantão (`livro_turno_portaria`)**:
+  - Tabela `livro_turno_portaria` no Neon Postgres gerida por `frontend/src/lib/store/livroTurnoDb.ts`.
+  - Campos: `id`, `porteiro_nome`, `turno` (`MANHÃ`, `TARDE`, `NOITE`), `assunto`, `prioridade` (`NORMAL`, `IMPORTANTE`, `URGENTE`), `descricao`, `lido_por` (`JSONB`).
+  - Endpoints:
+    - `GET /api/condominio/livro-turno`: Retorna os recados entre turnos em ordem decrescente.
+    - `POST /api/condominio/livro-turno`: Cria novo registro de plantão.
+    - `PATCH /api/condominio/livro-turno/[id]/ciente`: Adiciona o nome do porteiro logado ao array `lido_por`.
+- **Visitantes Manuais (`visitantes`)**:
+  - Tabela `visitantes` no Neon Postgres gerida por `frontend/src/lib/store/visitantesDb.ts` (substituiu o array em memória em `/api/visitantes`).
+  - Campos: `id`, `nome`, `documento`, `placa_veiculo`, `unidade_destino`, `status`, `data_entrada`.
+  - Endpoints `GET` e `POST` em `/api/visitantes` agora executam queries reais via `pool.query`.
+- **UI da Portaria (`frontend/src/app/(dashboard)/portaria/page.tsx`)**:
+  - Organizada em Abas: `📖 Livro de Plantão & Turnos` e `📱 QR Code & Visitantes`.
+  - Controle de identificação do porteiro logado no cabeçalho para assinatura de ciência com 1 clique.
+
+## Módulo Financeiro & 2ª Via de Boletos (PostgreSQL Real)
+
+- **Tabela `boletos_financeiro` (Neon Postgres via `frontend/src/lib/store/financeiroDb.ts`)**:
+  - Campos: `id`, `unidade`, `competencia`, `valor_num`, `data_vencimento`, `status` (`PENDENTE`, `PAGO`, `VENCIDO`), `codigo_barras`, `pix_copia_cola`, `detalhamento` (`JSONB`).
+  - Atualização automática de vencidos: O `listarBoletos` roda `UPDATE boletos_financeiro SET status = 'VENCIDO' WHERE status = 'PENDENTE' AND data_vencimento < CURRENT_DATE`.
+- **Endpoints de API (`/api/condominio/financeiro`)**:
+  - `GET /api/condominio/financeiro?unidade=X`: Lista boletos de uma unidade com atualização dinâmica de status.
+  - `POST /api/condominio/financeiro`: Permite ao Síndico ou Sistema gerar novos boletos.
+  - `PATCH /api/condominio/financeiro/[id]/pagar`: Simula ou confirma o pagamento da fatura (`status = 'PAGO'`).
+- **UI do Morador (`frontend/src/app/(dashboard)/area-morador/page.tsx`)**:
+  - Aba interativa `💳 Financeiro & 2ª Via` com KPIs financeiros, faturas listadas e modal de **Emissão de 2ª Via** (detalhamento de despesas, botão para copiar Linha Digitável, botão para copiar PIX Copia e Cola e botão de impressão/salvar PDF).
+
+

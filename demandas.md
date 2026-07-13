@@ -33,12 +33,12 @@ Status (atualizado em 2026-07-12):
 Cadastro de Moradores -> feito de verdade (Postgres real via Neon, senha com hash, testado no deploy remoto)
 Reserva de salão/churrasqueira/academia -> feito de verdade (Postgres/Neon)
 comunicados -> feito de verdade (Postgres/Neon), tela do síndico já publica e lista de verdade
-enquetes -> não existe ainda, só aparece como mockup na tela do síndico
+enquetes -> FEITO DE VERDADE (Postgres real via Neon nas tabelas enquetes e enquete_votos, com criação dinâmica de enquetes pelo síndico, encerramento/reabertura, votação real com bloqueio de voto duplicado por unidade e barras de porcentagem em tempo real no síndico e no morador)
 livro de ocorrencias -> feito de verdade (Postgres/Neon)
 segunda via de boletos -> não existe (financeiro do morador é 100% novo, do zero)
 aviso de encomendas -> feito de verdade (Postgres/Neon)
 dashboard do síndico -> feito, ligado a dados reais; indicadores fixos sem dado real ("Resolução com IA", "Índices do Condomínio") foram removidos por enquanto
-area do porteiro -> visitantes manuais (registro sem QR) ainda em memória; leitor de câmera pro QR Code já existe (ver abaixo); botão de pânico e livro de turno do Stitch ainda não foram construídos
+area do porteiro -> FEITO DE VERDADE: visitantes manuais migrados para Postgres (tabela visitantes no Neon), Livro de Plantão/Turno criado e integrado ao Postgres (tabela livro_turno_portaria com confirmação individual de leitura ciente e abas interativas em /portaria); botão de pânico ainda não foi construído
 area do morador -> versão simples existe; QR Code de liberação de visita já é real (ver abaixo); financeiro e enquete do Stitch ainda não
 Controle de Visitantes com QR code -> FEITO (tabela liberacoes_visita no Neon, geração de código+imagem real, validação com expiração/reuso testada). Falta só testar o escaneamento com câmera de verdade num dispositivo físico — não foi possível testar isso no ambiente onde foi construído (sem hardware de câmera)
 notificação de email e whatsapp -> não existe ainda
@@ -51,11 +51,11 @@ Infra que não estava na lista original mas virou pré-requisito de tudo isso:
 
 Pendências restantes (o que falta atacar agora, em ordem sugerida):
 1. Testar o QR Code com câmera real (celular/PC do usuário) — único item bloqueado por falta de hardware de teste
-2. Enquetes (mural do síndico)
-3. Financeiro do morador / segunda via de boleto (novo, do zero)
+2. Enquetes (mural do síndico e morador) — FEITO DE VERDADE
+3. Financeiro do morador / segunda via de boleto — FEITO DE VERDADE (tabela boletos_financeiro no Neon/Postgres com emissão de 2ª via, PIX Copia e Cola, Código de Barras e detalhamento de despesas)
 4. Botão de pânico (portaria)
-5. Livro de turno da portaria (diferente do livro de ocorrências)
-6. Migrar /api/visitantes (registro manual) pro Postgres — ainda em memória
+5. Livro de turno da portaria (diferente do livro de ocorrências) — FEITO DE VERDADE (tabela livro_turno_portaria no Postgres/Neon com confirmação individual de ciência por porteiro)
+6. Migrar /api/visitantes (registro manual) pro Postgres — FEITO DE VERDADE (tabela visitantes no Neon)
 7. Proteger rotas de API diretamente no proxy.ts (hoje só as páginas são protegidas)
 8. Notificação por e-mail e WhatsApp
 9. Aplicação PWA para celular

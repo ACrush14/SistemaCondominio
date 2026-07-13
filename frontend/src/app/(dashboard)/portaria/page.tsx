@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Html5QrcodeScanner } from "html5-qrcode";
 
 interface Visitante {
@@ -10,19 +10,107 @@ interface Visitante {
   status: "PENDENTE" | "AUTORIZADO" | "NEGADO";
 }
 
+interface RegistroTurno {
+  id: number;
+  porteiro_nome: string;
+  turno: string;
+  assunto: string;
+  prioridade: "NORMAL" | "IMPORTANTE" | "URGENTE";
+  descricao: string;
+  lido_por: string[];
+  criado_em: string;
+}
+
 export default function PortariaPage() {
+  const [abaAtiva, setAbaAtiva] = useState<"VISITANTES" | "LIVRO_TURNO">("LIVRO_TURNO");
+  const [nomePorteiroAtual, setNomePorteiroAtual] = useState("Fulano Porteiro");
+
+  // Estado Visitantes / QR Code
   const [visitantes, setVisitantes] = useState<Visitante[]>([]);
   const [modalAberto, setModalAberto] = useState(false);
   const [nome, setNome] = useState("");
   const [documento, setDocumento] = useState("");
   const [placa, setPlaca] = useState("");
   const [unidade, setUnidade] = useState("");
-
   const [scannerAtivo, setScannerAtivo] = useState(false);
-  const [resultadoScan, setResultadoScan] = useState<
-    { tipo: "sucesso" | "erro"; mensagem: string } | null
-  >(null);
+  const [resultadoScan, setResultadoScan] = useState<{
+    tipo: "sucesso" | "erro";
+    mensagem: string;
+  } | null>(null);
 
+  // Estado Livro de Turno
+  const [registrosTurno, setRegistrosTurno] = useState<RegistroTurno[]>([]);
+  const [filtroPrioridade, setFiltroPrioridade] = useState<string>("TODAS");
+  const [modalTurnoAberto, setModalTurnoAberto] = useState(false);
+  const [novoTurno, setNovoTurno] = useState("TARDE (14h - 22h)");
+  const [novoAssunto, setNovoAssunto] = useState("PASSAGEM DE PLANTÃO");
+  const [novaPrioridade, setNovaPrioridade] = useState<"NORMAL" | "IMPORTANTE" | "URGENTE">("NORMAL");
+  const [novaDescricao, setNovaDescricao] = useState("");
+  const [salvandoTurno, setSalvandoTurno] = useState(false);
+
+  // Busca do Livro de Turno
+  const buscarLivroTurno = useCallback(async () => {
+    try {
+      const res = await fetch("/api/condominio/livro-turno");
+      if (res.ok) {
+        const dados = await res.json();
+        setRegistrosTurno(dados);
+      }
+    } catch (_err) {
+      // ignora
+    }
+  }, []);
+
+  useEffect(() => {
+    buscarLivroTurno();
+    const int = setInterval(buscarLivroTurno, 10000);
+    return () => clearInterval(int);
+  }, [buscarLivroTurno]);
+
+  const registrarNovoTurno = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!novaDescricao.trim()) return;
+    setSalvandoTurno(true);
+    try {
+      const res = await fetch("/api/condominio/livro-turno", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          porteiro_nome: nomePorteiroAtual,
+          turno: novoTurno,
+          assunto: novoAssunto,
+          prioridade: novaPrioridade,
+          descricao: novaDescricao,
+        }),
+      });
+      if (res.ok) {
+        const dados = await res.json();
+        setRegistrosTurno(dados);
+        setModalTurnoAberto(false);
+        setNovaDescricao("");
+      }
+    } finally {
+      setSalvandoTurno(false);
+    }
+  };
+
+  const marcarComoCiente = async (id: number) => {
+    try {
+      const res = await fetch(`/api/condominio/livro-turno/${id}/ciente`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ porteiro_nome: nomePorteiroAtual }),
+      });
+      if (res.ok) {
+        const dados = await res.json();
+        setRegistrosTurno(dados);
+      }
+    } catch (_err) {
+      // ignora
+    }
+  };
+
+  // Funções de QR e Visitantes
   const validarCodigo = useCallback(async (codigo: string) => {
     try {
       const res = await fetch("/api/condominio/visitas/validar", {
@@ -48,9 +136,7 @@ export default function PortariaPage() {
 
   useEffect(() => {
     if (!scannerAtivo) return;
-
     const scanner = new Html5QrcodeScanner("leitor-qr", { fps: 10, qrbox: 250 }, false);
-
     scanner.render(
       (codigoLido) => {
         scanner.pause(true);
@@ -60,7 +146,6 @@ export default function PortariaPage() {
       },
       () => {}
     );
-
     return () => {
       scanner.clear().catch(() => {});
     };
@@ -71,8 +156,8 @@ export default function PortariaPage() {
       const res = await fetch("/api/visitantes");
       const dados = await res.json();
       setVisitantes(dados);
-    } catch (err) {
-      console.error("Erro ao buscar");
+    } catch (_err) {
+      // ignora
     }
   }, []);
 
@@ -98,65 +183,410 @@ export default function PortariaPage() {
     buscarVisitantes();
   };
 
+  const registrosFiltrados = registrosTurno.filter((r) =>
+    filtroPrioridade === "TODAS" ? true : r.prioridade === filtroPrioridade
+  );
+
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex justify-between">
-        <h1 className="text-3xl font-bold">Portaria</h1>
+    <div className="p-8 space-y-6 max-w-6xl mx-auto">
+      {/* Cabeçalho principal com identificação do porteiro */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+        <div>
+          <span className="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full mb-2">
+            Módulo de Segurança & Comunicação
+          </span>
+          <h1 className="text-3xl font-extrabold text-[#0A2540]">Central da Portaria</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Controle de acesso, validação de QR Code e Livro de Plantão em tempo real.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 bg-gray-50 px-4 py-2.5 rounded-2xl border border-gray-200/60">
+          <span className="text-lg">👮</span>
+          <div>
+            <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
+              Porteiro Logado
+            </span>
+            <input
+              type="text"
+              value={nomePorteiroAtual}
+              onChange={(e) => setNomePorteiroAtual(e.target.value)}
+              className="font-bold text-sm text-[#0A2540] bg-transparent focus:outline-none border-b border-transparent focus:border-blue-500 max-w-[150px]"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Navegação entre Abas */}
+      <div className="flex gap-2 border-b border-gray-200 pb-2">
         <button
-          onClick={() => setModalAberto(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded"
+          onClick={() => setAbaAtiva("LIVRO_TURNO")}
+          className={`px-5 py-3 rounded-2xl font-bold text-sm transition-all flex items-center gap-2.5 cursor-pointer ${
+            abaAtiva === "LIVRO_TURNO"
+              ? "bg-[#0A2540] text-white shadow-md"
+              : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200/60"
+          }`}
         >
-          + Registrar
+          <span>📖</span>
+          <span>Livro de Plantão & Turnos</span>
+          <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">
+            {registrosTurno.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setAbaAtiva("VISITANTES")}
+          className={`px-5 py-3 rounded-2xl font-bold text-sm transition-all flex items-center gap-2.5 cursor-pointer ${
+            abaAtiva === "VISITANTES"
+              ? "bg-[#0A2540] text-white shadow-md"
+              : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200/60"
+          }`}
+        >
+          <span>📱</span>
+          <span>QR Code & Visitantes</span>
         </button>
       </div>
 
-      <div className="bg-white shadow rounded-2xl p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-[#0A2540]">Escanear Acesso</h2>
-          <button
-            onClick={() => {
-              setScannerAtivo(!scannerAtivo);
-              setResultadoScan(null);
-            }}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
-          >
-            {scannerAtivo ? "Parar Câmera" : "Ativar Câmera"}
-          </button>
-        </div>
+      {/* ==================== ABA LIVRO DE TURNO ==================== */}
+      {abaAtiva === "LIVRO_TURNO" && (
+        <div className="space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+            <div>
+              <h2 className="text-xl font-bold text-[#0A2540]">📖 Comunicação entre Turnos</h2>
+              <p className="text-xs text-gray-500 mt-1">
+                Todas as ocorrências, chaves, avisos importantes e passagens de plantão registradas no PostgreSQL.
+              </p>
+            </div>
 
-        {resultadoScan && (
-          <div
-            className={`p-3 rounded-xl text-sm font-medium ${
-              resultadoScan.tipo === "sucesso"
-                ? "bg-emerald-50 text-emerald-800"
-                : "bg-red-50 text-red-800"
-            }`}
-          >
-            {resultadoScan.mensagem}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setModalTurnoAberto(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-5 py-3 rounded-2xl shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <span>+ Passar Plantão / Novo Registro</span>
+              </button>
+            </div>
           </div>
-        )}
 
-        {scannerAtivo && <div id="leitor-qr" />}
-      </div>
+          {/* Filtros rápidos por prioridade */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mr-2">
+              Filtrar por prioridade:
+            </span>
+            {[
+              { id: "TODAS", label: "Todas" },
+              { id: "URGENTE", label: "🔴 Urgente" },
+              { id: "IMPORTANTE", label: "🟡 Importante" },
+              { id: "NORMAL", label: "🟢 Normal" },
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setFiltroPrioridade(f.id)}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                  filtroPrioridade === f.id
+                    ? "bg-[#0A2540] text-white shadow-sm"
+                    : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
 
-      <table className="w-full bg-white shadow rounded">
-        <thead>
-          <tr className="border-b">
-            <th className="p-4">Nome</th>
-            <th className="p-4">Unidade</th>
-            <th className="p-4">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {visitantes.map((v) => (
-            <tr key={v.id} className="border-b">
-              <td className="p-4">{v.nome}</td>
-              <td className="p-4">{v.unidade_destino}</td>
-              <td className="p-4 font-bold">{v.status}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          {/* Lista dos registros de turno */}
+          <div className="grid grid-cols-1 gap-4">
+            {registrosFiltrados.length === 0 ? (
+              <div className="bg-white p-12 rounded-3xl border border-gray-100 text-center space-y-2">
+                <span className="text-4xl">📖</span>
+                <p className="font-bold text-[#0A2540]">Nenhum registro encontrado</p>
+                <p className="text-xs text-gray-400">
+                  Nenhuma passagem de plantão corresponde ao filtro selecionado.
+                </p>
+              </div>
+            ) : (
+              registrosFiltrados.map((r) => {
+                const jaLeu = r.lido_por.includes(nomePorteiroAtual);
+                return (
+                  <div
+                    key={r.id}
+                    className={`bg-white rounded-3xl p-6 border shadow-sm transition-all space-y-4 ${
+                      r.prioridade === "URGENTE"
+                        ? "border-red-200 bg-red-50/20"
+                        : r.prioridade === "IMPORTANTE"
+                        ? "border-amber-200 bg-amber-50/20"
+                        : "border-gray-100"
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span
+                          className={`text-[10px] font-extrabold px-3 py-1 rounded-full uppercase ${
+                            r.prioridade === "URGENTE"
+                              ? "bg-red-100 text-red-800"
+                              : r.prioridade === "IMPORTANTE"
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-gray-100 text-gray-700"
+                          }`}
+                        >
+                          {r.prioridade === "URGENTE"
+                            ? "🔴 URGENTE"
+                            : r.prioridade === "IMPORTANTE"
+                            ? "🟡 IMPORTANTE"
+                            : "🟢 NORMAL"}
+                        </span>
+                        <span className="text-xs bg-blue-50 text-blue-800 font-bold px-3 py-1 rounded-full">
+                          🕒 {r.turno}
+                        </span>
+                        <span className="text-xs bg-purple-50 text-purple-800 font-bold px-3 py-1 rounded-full">
+                          📋 {r.assunto}
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-400 font-medium">
+                        Registrado em {r.criado_em} por <strong>{r.porteiro_nome}</strong>
+                      </span>
+                    </div>
+
+                    <p className="text-sm text-[#0A2540] font-medium leading-relaxed bg-gray-50/80 p-4 rounded-2xl border border-gray-100">
+                      {r.descricao}
+                    </p>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-gray-100">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-gray-400">
+                          Ciente ({r.lido_por.length}):
+                        </span>
+                        {r.lido_por.length === 0 ? (
+                          <span className="text-xs text-gray-400 italic">
+                            Nenhum porteiro assinou ainda
+                          </span>
+                        ) : (
+                          r.lido_por.map((nome, idx) => (
+                            <span
+                              key={idx}
+                              className="text-xs bg-emerald-50 text-emerald-800 font-semibold px-2.5 py-0.5 rounded-full border border-emerald-200/50"
+                            >
+                              ✓ {nome}
+                            </span>
+                          ))
+                        )}
+                      </div>
+
+                      {!jaLeu ? (
+                        <button
+                          onClick={() => marcarComoCiente(r.id)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all shadow-sm cursor-pointer"
+                        >
+                          ✓ Confirmar Leitura / Estou Ciente
+                        </button>
+                      ) : (
+                        <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
+                          ✓ Você já confirmou ciência deste registro
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ==================== ABA VISITANTES & QR CODE ==================== */}
+      {abaAtiva === "VISITANTES" && (
+        <div className="space-y-6">
+          <div className="bg-white shadow-sm rounded-3xl p-6 border border-gray-100 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-[#0A2540]">Escanear QR Code de Liberação</h2>
+                <p className="text-xs text-gray-500 mt-1">
+                  Aponte a câmera para o QR gerado pelo morador em 24h
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setScannerAtivo(!scannerAtivo);
+                  setResultadoScan(null);
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
+              >
+                {scannerAtivo ? "Parar Câmera" : "Ativar Câmera"}
+              </button>
+            </div>
+
+            {resultadoScan && (
+              <div
+                className={`p-4 rounded-2xl text-sm font-bold ${
+                  resultadoScan.tipo === "sucesso"
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                    : "bg-red-50 text-red-800 border border-red-200"
+                }`}
+              >
+                {resultadoScan.mensagem}
+              </div>
+            )}
+
+            {scannerAtivo && <div id="leitor-qr" className="rounded-2xl overflow-hidden" />}
+          </div>
+
+          {/* Controle Manual */}
+          <div className="bg-white shadow-sm rounded-3xl p-6 border border-gray-100 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-[#0A2540]">Registros Manuais de Visitantes</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Visitantes sem QR Code registrados na portaria
+                </p>
+              </div>
+              <button
+                onClick={() => setModalAberto(true)}
+                className="bg-[#0A2540] hover:bg-[#0A2540]/90 text-white font-bold text-sm px-4 py-2.5 rounded-xl transition-all cursor-pointer"
+              >
+                + Registrar Entrada
+              </button>
+            </div>
+
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-gray-100 text-xs text-gray-400 uppercase">
+                  <th className="py-3 px-2">Nome</th>
+                  <th className="py-3 px-2">Unidade</th>
+                  <th className="py-3 px-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visitantes.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="py-8 text-center text-sm text-gray-400">
+                      Nenhum visitante registrado no turno.
+                    </td>
+                  </tr>
+                ) : (
+                  visitantes.map((v) => (
+                    <tr key={v.id} className="border-b border-gray-50 text-sm">
+                      <td className="py-3 px-2 font-semibold text-[#0A2540]">{v.nome}</td>
+                      <td className="py-3 px-2 text-gray-600">{v.unidade_destino}</td>
+                      <td className="py-3 px-2">
+                        <span className="font-bold text-xs bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full">
+                          {v.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Novo Turno */}
+      {modalTurnoAberto && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <form
+            onSubmit={registrarNovoTurno}
+            className="bg-white p-6 rounded-3xl shadow-2xl space-y-4 w-full max-w-lg relative border border-gray-100 max-h-[90vh] overflow-y-auto"
+          >
+            <button
+              type="button"
+              onClick={() => setModalTurnoAberto(false)}
+              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm transition-colors"
+            >
+              ✕
+            </button>
+            <div>
+              <h3 className="font-bold text-xl text-[#0A2540]">Passar Plantão / Novo Registro</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Informe o próximo turno sobre chaves, avisos, encomendas ou ocorrências
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">
+                  Turno do Registro
+                </label>
+                <select
+                  value={novoTurno}
+                  onChange={(e) => setNovoTurno(e.target.value)}
+                  className="border border-gray-200 p-3 rounded-xl w-full text-sm font-semibold focus:outline-none focus:border-blue-500"
+                >
+                  <option value="MANHÃ (06h - 14h)">MANHÃ (06h - 14h)</option>
+                  <option value="TARDE (14h - 22h)">TARDE (14h - 22h)</option>
+                  <option value="NOITE (22h - 06h)">NOITE (22h - 06h)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">
+                  Prioridade do Recado
+                </label>
+                <select
+                  value={novaPrioridade}
+                  onChange={(e) =>
+                    setNovaPrioridade(e.target.value as "NORMAL" | "IMPORTANTE" | "URGENTE")
+                  }
+                  className="border border-gray-200 p-3 rounded-xl w-full text-sm font-semibold focus:outline-none focus:border-blue-500"
+                >
+                  <option value="NORMAL">🟢 Normal</option>
+                  <option value="IMPORTANTE">🟡 Importante</option>
+                  <option value="URGENTE">🔴 Urgente</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                Assunto / Categoria
+              </label>
+              <select
+                value={novoAssunto}
+                onChange={(e) => setNovoAssunto(e.target.value)}
+                className="border border-gray-200 p-3 rounded-xl w-full text-sm font-semibold focus:outline-none focus:border-blue-500"
+              >
+                <option value="PASSAGEM DE PLANTÃO">PASSAGEM DE PLANTÃO</option>
+                <option value="CHAVES & ÁREAS COMUNS">CHAVES & ÁREAS COMUNS</option>
+                <option value="ENCOMENDAS PENDENTES">ENCOMENDAS PENDENTES</option>
+                <option value="AVISOS GERAIS">AVISOS GERAIS</option>
+                <option value="VISITANTE ESPERADO">VISITANTE ESPERADO</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                Descrição do Recado para o Próximo Turno
+              </label>
+              <textarea
+                rows={4}
+                value={novaDescricao}
+                onChange={(e) => setNovaDescricao(e.target.value)}
+                placeholder="Ex: Chave do salão de festas foi entregue ao Sr. Carlos (Apto 402) às 16h..."
+                className="border border-gray-200 p-3 rounded-xl w-full text-sm focus:outline-none focus:border-blue-500"
+                required
+              />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="submit"
+                disabled={salvandoTurno}
+                className="flex-1 bg-[#0A2540] hover:bg-[#0A2540]/90 disabled:opacity-50 text-white py-3 rounded-xl font-semibold text-sm transition-all shadow-sm cursor-pointer"
+              >
+                {salvandoTurno ? "Salvando no PostgreSQL..." : "Publicar no Livro de Turno"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setModalTurnoAberto(false)}
+                className="px-5 py-3 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-xl font-semibold text-sm transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal Registrar Visitante Manual */}
       {modalAberto && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <form
@@ -175,7 +605,9 @@ export default function PortariaPage() {
               <p className="text-xs text-gray-500 mt-0.5">Autorizar visitante na portaria</p>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Nome do Visitante</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                Nome do Visitante
+              </label>
               <input
                 placeholder="Ex: Carlos Eduardo"
                 className="border border-gray-200 p-3 rounded-xl w-full text-sm focus:outline-none focus:border-[#0A2540]"
@@ -184,7 +616,9 @@ export default function PortariaPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Unidade de Destino</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                Unidade de Destino
+              </label>
               <input
                 placeholder="Ex: Apto 402"
                 className="border border-gray-200 p-3 rounded-xl w-full text-sm focus:outline-none focus:border-[#0A2540]"
@@ -193,7 +627,10 @@ export default function PortariaPage() {
               />
             </div>
             <div className="flex gap-3 pt-2">
-              <button type="submit" className="flex-1 bg-[#0A2540] hover:bg-[#0A2540]/90 text-white py-3 rounded-xl font-semibold text-sm transition-colors shadow-sm">
+              <button
+                type="submit"
+                className="flex-1 bg-[#0A2540] hover:bg-[#0A2540]/90 text-white py-3 rounded-xl font-semibold text-sm transition-colors shadow-sm"
+              >
                 Confirmar
               </button>
               <button

@@ -1,45 +1,39 @@
 import { NextResponse } from "next/server";
-
-let visitantesDB = [
-  {
-    id: "1",
-    nome: "Carlos Eduardo Silva",
-    documento: "123.456.789-00",
-    placa_veiculo: "ABC-1234",
-    unidade_destino: "Apto 301",
-    status: "ENTROU",
-    data_entrada: new Date().toISOString(),
-  },
-  {
-    id: "2",
-    nome: "Entregador MercadoLivre",
-    documento: "987.654.321-99",
-    placa_veiculo: "XYZ-9988",
-    unidade_destino: "Apto 501",
-    status: "ENTROU",
-    data_entrada: new Date().toISOString(),
-  },
-];
+import { pool } from "../../../lib/store/db";
+import { listarVisitantes, garantirTabelaVisitantes } from "../../../lib/store/visitantesDb";
 
 export async function GET() {
-  return NextResponse.json(visitantesDB);
+  try {
+    const visitantes = await listarVisitantes();
+    return NextResponse.json(visitantes);
+  } catch (erro: unknown) {
+    console.error("Erro ao listar visitantes:", erro);
+    const msg = erro instanceof Error ? erro.message : String(erro);
+    return NextResponse.json({ erro: "Erro ao listar visitantes: " + msg }, { status: 500 });
+  }
 }
 
 export async function POST(req: Request) {
   try {
+    await garantirTabelaVisitantes();
     const body = await req.json();
-    const novo = {
-      id: String(Date.now()),
-      nome: body.nome || "Visitante",
-      documento: body.documento || "-",
-      placa_veiculo: body.placa_veiculo || "-",
-      unidade_destino: body.unidade_destino || "-",
-      status: "ENTROU",
-      data_entrada: new Date().toISOString(),
-    };
-    visitantesDB.unshift(novo);
-    return NextResponse.json(novo, { status: 201 });
-  } catch (_err) {
-    return NextResponse.json({ erro: "Erro ao registrar visitante" }, { status: 400 });
+
+    const nome = (body.nome || "Visitante Não Identificado").trim();
+    const documento = (body.documento || "-").trim();
+    const placa_veiculo = (body.placa_veiculo || "-").trim();
+    const unidade_destino = (body.unidade_destino || "-").trim();
+
+    const res = await pool.query(
+      `INSERT INTO visitantes (nome, documento, placa_veiculo, unidade_destino, status)
+       VALUES ($1, $2, $3, $4, 'ENTROU')
+       RETURNING id, nome, documento, placa_veiculo, unidade_destino, status`,
+      [nome, documento, placa_veiculo, unidade_destino]
+    );
+
+    return NextResponse.json(res.rows[0], { status: 201 });
+  } catch (erro: unknown) {
+    console.error("Erro ao registrar visitante:", erro);
+    const msg = erro instanceof Error ? erro.message : String(erro);
+    return NextResponse.json({ erro: "Erro ao registrar visitante: " + msg }, { status: 400 });
   }
 }
