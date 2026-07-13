@@ -160,8 +160,20 @@ Capturados com Playwright (instalado temporariamente, script descartado depois �
   - `POST /api/condominio/panico`: Aciona um novo alerta de emergência com status `'ATIVO'`.
   - `PATCH /api/condominio/panico/[id]/resolver`: Encerra o alerta marcando `status = 'RESOLVIDO'`.
 - **UI & Sincronização em Tempo Real**:
-  - **Portaria (`/portaria`)**: Botão vermelho vibrante no cabeçalho com modal para disparo em 1 clique (`⚡ DISPARAR PÂNICO IMEDIATO AGORA`) ou seleção de tipo de ocorrência. Banner ao vivo em todas as telas se houver alerta ativo.
   - **Dashboard do Síndico (`/`)**: Exibe banner vermelho piscante no topo da tela com botão `✓ Confirmar Atendimento / Resolver Alerta` que encerra a emergência instantaneamente.
+
+## Planejamento de Arquitetura: Multi-Condomínio / Multi-Tenant SaaS (Próxima Demanda)
+
+Para permitir que o sistema suporte **múltiplos prédios/condomínios diferentes de forma isolada (SaaS Multi-Tenant)** sem misturar dados, a arquitetura deverá seguir o padrão de **Tenant Isolation por Chave Estrangeira**:
+1. **Tabela Principal `condominios` (`predios`)**:
+   - `id SERIAL PRIMARY KEY` (ou UUID), `nome VARCHAR(150)`, `slug VARCHAR(100) UNIQUE`, `cnpj`, `endereco`, `plano`.
+2. **Coluna `condominio_id` (FK)** em TODAS as tabelas subordinadas:
+   - `usuarios` (`condominio_id`), `ocorrencias`, `enquetes`, `boletos_financeiro`, `livro_turno_portaria`, `visitantes`, `alertas_panico`, `liberacoes_visita`.
+3. **Sessão JWT contextualizada**:
+   - O token JWT do usuário logado conterá o seu `condominio_id` (e opcionalmente se é superadmin da plataforma SaaS).
+4. **Filtro Automático de Tenant nas Queries**:
+   - Todas as queries `SELECT / UPDATE / DELETE` deverão incluir a cláusula `WHERE condominio_id = $tenantId` para blindar 100% o isolamento entre prédios.
+
 
 
 

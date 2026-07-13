@@ -60,5 +60,6 @@ Pendências restantes (o que falta atacar agora, em ordem sugerida):
 8. Notificação por e-mail e WhatsApp
 9. Aplicação PWA para celular
 10. Resolver DATABASE_URL no ambiente Preview da Vercel (hoje só em Production)
+11. Arquitetura Multi-Condomínio / Multi-Tenant SaaS (tabela de condomínios/prédios e coluna condominio_id em todas as tabelas e rotas para isolar 100% dos dados de moradores, portaria, financeiro, enquetes e ocorrências por prédio)
 
 Nota para quem continuar (ex.: outra ferramenta de IA como o Antigravity): o arquivo CLAUDE.md na raiz tem o contexto técnico completo — arquitetura, bugs encontrados e corrigidos (isolamento de módulo por rota, TIMESTAMP vs TIMESTAMPTZ), e detalhes de cada decisão. Leia ele antes de mexer em qualquer coisa.
