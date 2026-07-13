@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
 
-const CHAVE_SECRETA = process.env.JWT_SECRET || "segredo_super_secreto_condominio";
+const CHAVE_SECRETA = process.env.JWT_SECRET!;
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;

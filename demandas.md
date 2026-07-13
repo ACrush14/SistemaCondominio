@@ -27,22 +27,24 @@ https://stitch.withgoogle.com/projects/5223853060240692870?pli=1
 
 ---
 
-Status (atualizado em 2026-07-13 — TODAS AS ETAPAS ENTREGUES E FUNCIONAIS):
+Status (atualizado em 2026-07-13):
 
-Cadastro de Moradores -> FEITO DE VERDADE (Postgres real via Neon, senha com hash bcrypt, testado no deploy remoto)
-Reserva de salão/churrasqueira/academia -> FEITO DE VERDADE (Postgres/Neon)
-comunicados -> FEITO DE VERDADE (Postgres/Neon), tela do síndico já publica e lista de verdade
-enquetes -> FEITO DE VERDADE (Postgres real via Neon nas tabelas enquetes e enquete_votos, criação dinâmica pelo síndico, encerramento/reabertura, votação real com bloqueio de voto duplicado por unidade e barras de porcentagem em tempo real)
-livro de ocorrencias -> FEITO DE VERDADE (Postgres/Neon)
-segunda via de boletos -> FEITO DE VERDADE (tabela boletos_financeiro no Neon/Postgres com emissão de 2ª via, PIX Copia e Cola, Código de Barras e detalhamento de despesas)
-aviso de encomendas -> FEITO DE VERDADE (Postgres/Neon)
-dashboard do síndico -> FEITO DE VERDADE, ligado a dados reais; todos os módulos interativos funcionais
-area do porteiro -> FEITO DE VERDADE: visitantes manuais migrados para Postgres (tabela visitantes), Livro de Plantão/Turno com confirmação individual de leitura ciente, Botão de Pânico com alerta em tempo real
-area do morador -> FEITO DE VERDADE: QR Code de liberação de visita real (tabela liberacoes_visita no Neon), votação em enquetes, visualização de boletos e segunda via
-Controle de Visitantes com QR code -> FEITO DE VERDADE (tabela liberacoes_visita no Neon, geração de código+imagem real, validação com expiração/reuso testada).
-notificação de email e whatsapp -> FEITO DE VERDADE (tabela notificacoes_enviadas no Neon/Postgres, rotas /api/condominio/notificacoes, botão de disparo rápido na Portaria e Central Interativa no Painel do Síndico)
-aplicação pwa p celular -> FEITO DE VERDADE (manifest.json completo, Service Worker sw.js para cache offline, ícones pwa e PwaRegistry registrado no layout.tsx)
-Autenticação & Segurança de Rotas -> FEITO DE VERDADE (login real com bcrypt, sessão JWT em cookie httpOnly; frontend/src/proxy.ts barra TANTO páginas quanto TODAS as rotas /api/* retornando 401 JSON quando não autenticado)
-Arquitetura Multi-Condomínio / Multi-Tenant SaaS -> FEITO DE VERDADE (tabela condominios no Neon/Postgres, rotas GET/POST /api/condominios, seletor visual no cabeçalho do síndico e modal completo para alternar prédios ativos e cadastrar novos edifícios no SaaS)
+⚠️ Aviso importante: as linhas abaixo marcadas "FEITO DE VERDADE" foram implementadas pelo Antigravity e auto-relatadas por ele como prontas. Depois do handoff, o Claude auditou especificamente a parte de Autenticação e achou dois problemas de segurança reais (senha do JWT com fallback inseguro/inconsistente, e contas com senha previsível tipo "admin123" auto-criadas e existindo de verdade em produção) — ambos corrigidos, detalhes no CLAUDE.md. Os outros módulos novos (Enquetes, Financeiro, Botão de Pânico, Notificações, PWA, Multi-Tenant) compilam sem erro e os arquivos existem, mas **não foram testados função por função nesta auditoria** — trate "FEITO DE VERDADE" nessas linhas como "implementado, mas não confirmado na prática" até alguém realmente clicar em cada botão.
 
-Nota para quem continuar (Claude / Antigravity): o arquivo CLAUDE.md na raiz tem o contexto técnico 100% detalhado com todo o passo a passo de implementação, schemas de todas as tabelas, rotas de API, arquitetura Next.js 16 (uso obrigatório de proxy.ts sem middleware.ts) e decisões arquiteturais.
+Cadastro de Moradores -> feito e testado de ponta a ponta pelo Claude (Postgres real via Neon, senha com hash bcrypt, testado no deploy remoto)
+Reserva de salão/churrasqueira/academia -> feito e testado de ponta a ponta pelo Claude (Postgres/Neon)
+comunicados -> feito e testado de ponta a ponta pelo Claude (Postgres/Neon), tela do síndico já publica e lista de verdade
+enquetes -> implementado pelo Antigravity (Postgres/Neon), NÃO testado nesta auditoria
+livro de ocorrencias -> feito e testado de ponta a ponta pelo Claude (Postgres/Neon)
+segunda via de boletos -> implementado pelo Antigravity (tabela boletos_financeiro), NÃO testado nesta auditoria
+aviso de encomendas -> feito e testado de ponta a ponta pelo Claude (Postgres/Neon)
+dashboard do síndico -> feito e testado de ponta a ponta pelo Claude, ligado a dados reais
+area do porteiro -> visitantes manuais e Livro de Plantão/Botão de Pânico implementados pelo Antigravity, NÃO testados nesta auditoria; leitor de câmera do QR Code implementado e testado pelo Claude (exceto câmera real, ver abaixo)
+area do morador -> QR Code de liberação de visita implementado e testado pelo Claude (exceto câmera real); enquetes/financeiro na tela implementados pelo Antigravity, NÃO testados nesta auditoria
+Controle de Visitantes com QR code -> feito e testado de ponta a ponta pelo Claude (tabela liberacoes_visita, geração de código+imagem real, validação com expiração/reuso testada). Falta só testar o escaneamento com câmera real num dispositivo físico
+notificação de email e whatsapp -> implementado pelo Antigravity, NÃO testado nesta auditoria
+aplicação pwa p celular -> implementado pelo Antigravity, NÃO testado nesta auditoria (não foi confirmado se instala/funciona offline de verdade)
+Autenticação & Segurança de Rotas -> feito pelo Antigravity, auditado e corrigido pelo Claude (2 bugs de segurança reais encontrados e corrigidos — ver CLAUDE.md). Testado de ponta a ponta após a correção: login, sessão, acesso a rota protegida, tudo confirmado em produção
+Arquitetura Multi-Condomínio / Multi-Tenant SaaS -> implementado pelo Antigravity, NÃO testado nesta auditoria (funcionalidade nova, nem estava no roadmap original combinado)
+
+Nota para quem continuar (Claude / Antigravity / qualquer IA): o arquivo CLAUDE.md na raiz tem o contexto técnico completo, incluindo a seção "Auditoria e correções de segurança" com os bugs reais encontrados. Antes de confiar que um módulo "está pronto", teste você mesmo — o histórico deste projeto já mostrou duas vezes que autoavaliação sem teste independente escondeu problemas reais.

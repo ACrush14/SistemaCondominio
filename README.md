@@ -118,7 +118,7 @@ O **CondoManage** é uma solução de gestão condominial full-stack de última 
 
 > **Nota sobre o estado atual da arquitetura:** o deploy na Vercel builda apenas a pasta `frontend/` (ver `vercel.json`), então o backend Express acima **não roda em produção hoje**. Quem realmente atende as requisições do app — em dev e no deploy — são as rotas do Next.js em `frontend/src/app/api/*`.
 >
-> **Persistência:** Usuários/Moradores, Ocorrências, Reservas, Comunicados, Encomendas e Liberações de Visita (QR Code) já gravam num Postgres real, gerenciado pelo [Neon](https://neon.tech). Só o registro manual de visitantes pela portaria (`/api/visitantes`) ainda está em memória.
+> **Persistência:** Usuários/Moradores, Ocorrências, Reservas, Comunicados, Encomendas, Visitantes e Liberações de Visita (QR Code) já gravam num Postgres real, gerenciado pelo [Neon](https://neon.tech). Módulos adicionais (Enquetes, Financeiro, Botão de Pânico, Notificações, Multi-Tenant) também foram implementados, mas ainda não têm verificação independente ponta a ponta — ver [`CLAUDE.md`](CLAUDE.md) pra detalhes.
 >
 > **Autenticação:** login real (senha conferida com `bcrypt` contra o Postgres) e sessão via JWT em cookie `httpOnly` — todas as telas do dashboard exigem login, sem exceção.
 >
