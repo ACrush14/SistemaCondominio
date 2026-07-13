@@ -265,17 +265,19 @@ export default function PainelSindicoPage() {
     setCarregandoIa(true);
 
     try {
-      const res = await fetch("http://localhost:3333/api/condominio/ia-sindico", {
+      const res = await fetch("/api/condominio/ia-sindico", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pergunta: perguntaIa }),
       });
       const data = await res.json();
-      setRespostaIa(data.resposta_ia);
-    } catch (err) {
-      setRespostaIa(
-        "Análise Executiva IA: 2 ocorrências exigem ação prioritária hoje (vazamento no subsolo e aviso de silêncio para a unidade 402). A taxa média de resolução do mês está excelente (92%)."
-      );
+      if (!res.ok) {
+        setRespostaIa("Não foi possível consultar a IA agora: " + (data.erro || "erro desconhecido"));
+      } else {
+        setRespostaIa(data.resposta_ia);
+      }
+    } catch (_err) {
+      setRespostaIa("Não foi possível consultar a IA agora. Verifique sua conexão e tente novamente.");
     } finally {
       setCarregandoIa(false);
     }

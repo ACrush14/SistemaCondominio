@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@google/genai": "^2.11.0",
     "bcryptjs": "^3.0.3",
     "html5-qrcode": "^2.3.8",
     "jsonwebtoken": "^9.0.3",

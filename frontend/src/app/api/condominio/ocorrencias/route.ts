@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../../lib/store/db";
+import { perguntarGemini } from "../../../../lib/gemini";
+
+const INSTRUCAO_RESUMO = `Você é o assistente administrativo de um condomínio. Um morador relatou uma ocorrência.
+Escreva um resumo profissional e objetivo em português, em no máximo 2 frases curtas, destacando o problema e uma sugestão de encaminhamento (ex: "requer inspeção do zelador", "notificar unidade responsável").
+Não invente detalhes que não estejam no relato. Responda só com o resumo, sem introdução.`;
 
 const SELECT_BASE = `
   SELECT id, titulo, local, unidade, morador, categoria, status, resumo_ia,
@@ -26,6 +31,17 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+
+    let resumo = "Ocorrência registrada no sistema e encaminhada para análise do Síndico.";
+    if (body.descricao) {
+      try {
+        resumo = await perguntarGemini(body.descricao, INSTRUCAO_RESUMO);
+      } catch (erroGemini) {
+        console.error("Erro ao gerar resumo com Gemini:", erroGemini);
+        resumo = body.descricao;
+      }
+    }
+
     const resultado = await pool.query(
       `INSERT INTO ocorrencias (titulo, local, unidade, morador, categoria, resumo_ia)
        VALUES ($1, $2, $3, $4, $5, $6)
@@ -37,8 +53,7 @@ export async function POST(req: Request) {
         body.unidade || "-",
         body.morador || "Morador",
         body.categoria || "GERAL",
-        body.descricao ||
-          "Ocorrência registrada no sistema e encaminhada para análise do Síndico.",
+        resumo,
       ]
     );
     return NextResponse.json(resultado.rows[0], { status: 201 });
