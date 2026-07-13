@@ -85,6 +85,7 @@ export default function PainelSindicoPage() {
 
     carregarEnquetes();
     carregarPanico();
+    carregarCondominios();
     const intPanico = setInterval(carregarPanico, 5000);
     return () => clearInterval(intPanico);
   }, []);
@@ -127,6 +128,35 @@ export default function PainelSindicoPage() {
       })
       .catch(() => {});
   };
+
+  // SaaS Multi-Tenant Condomínios / Prédios
+  const [condominios, setCondominios] = useState<Array<{ id: number; nome: string; slug: string; cnpj: string; endereco: string; total_unidades: number; plano: string }>>([]);
+  const [condominioAtivo, setCondominioAtivo] = useState<{ id: number; nome: string; slug: string; plano: string }>({
+    id: 1,
+    nome: "Condomínio Tailson Executive",
+    slug: "tailson-executive",
+    plano: "ENTERPRISE",
+  });
+  const [modalSaas, setModalSaas] = useState(false);
+  const [novoPredioNome, setNovoPredioNome] = useState("");
+  const [novoPredioCnpj, setNovoPredioCnpj] = useState("");
+  const [novoPredioEndereco, setNovoPredioEndereco] = useState("");
+  const [criandoPredio, setCriandoPredio] = useState(false);
+
+  const carregarCondominios = () => {
+    fetch("/api/condominios")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setCondominios(data);
+          if (data.length > 0 && !condominioAtivo.id) {
+            setCondominioAtivo(data[0]);
+          }
+        }
+      })
+      .catch(() => {});
+  };
+
 
   const enviarNotificacao = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -310,21 +340,38 @@ export default function PainelSindicoPage() {
             AL
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-3xl font-bold tracking-tight text-[#0A2540] dark:text-white">
                 Dashboard do Síndico
               </h1>
               <span className="bg-blue-100 text-blue-800 text-xs font-extrabold px-2.5 py-1 rounded-full">
                 SÍNDICO
               </span>
+              <button
+                onClick={() => setModalSaas(true)}
+                className="bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 text-xs font-extrabold px-3 py-1 rounded-full flex items-center gap-1 cursor-pointer transition-all shadow-xs"
+              >
+                <span>🏢</span>
+                <span>{condominioAtivo.nome || "Condomínio Tailson Executive"}</span>
+                <span className="text-[10px] ml-1">▼</span>
+              </button>
             </div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-              Gestão Executiva • <strong>Anderson de Lima</strong>
+              Gestão Executiva SaaS • <strong>Anderson de Lima</strong>
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => {
+              carregarCondominios();
+              setModalSaas(true);
+            }}
+            className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm flex items-center gap-2 cursor-pointer"
+          >
+            <span>🏢</span> Prédios SaaS
+          </button>
           <button
             onClick={() => {
               carregarNotificacoes();
@@ -1029,7 +1076,168 @@ export default function PainelSindicoPage() {
           </div>
         </div>
       )}
+
+      {/* Modal Módulo Multi-Condomínio SaaS */}
+      {modalSaas && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-[#152033] p-6 md:p-8 rounded-3xl shadow-2xl space-y-6 w-full max-w-4xl relative border border-gray-200 dark:border-gray-800 max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setModalSaas(false)}
+              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 flex items-center justify-center font-bold text-sm cursor-pointer"
+            >
+              ✕
+            </button>
+
+            <div>
+              <span className="text-xs font-bold text-amber-600 uppercase tracking-wider">
+                Arquitetura SaaS Multi-Tenant
+              </span>
+              <h3 className="text-2xl font-extrabold text-[#0A2540] dark:text-white">
+                🏢 Selecionar ou Cadastrar Condomínio / Prédio
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Alterne o prédio ativo ou adicione novos condomínios com isolamento de dados no PostgreSQL.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Lista de Condomínios e Seleção */}
+              <div className="space-y-3">
+                <h4 className="font-bold text-sm text-[#0A2540] dark:text-white">
+                  🏢 Prédios Cadastrados (Selecione para Ativar)
+                </h4>
+
+                <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+                  {condominios.map((c) => {
+                    const isAtivo = condominioAtivo.id === c.id;
+                    return (
+                      <div
+                        key={c.id}
+                        onClick={() => {
+                          setCondominioAtivo(c);
+                          setMensagemAviso(`Prédio ativo alterado para: ${c.nome}`);
+                        }}
+                        className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                          isAtivo
+                            ? "bg-amber-50 dark:bg-amber-950/40 border-amber-500 shadow-sm"
+                            : "bg-white dark:bg-[#111a2e] border-gray-200 dark:border-gray-800 hover:border-amber-400"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-extrabold text-sm text-[#0A2540] dark:text-white">
+                            {c.nome}
+                          </span>
+                          <span className="text-[10px] font-extrabold bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full">
+                            {c.plano}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {c.endereco || "Endereço não informado"} • CNPJ: {c.cnpj || "N/A"}
+                        </p>
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-800 text-xs">
+                          <span className="text-gray-400">Total: {c.total_unidades} unidades</span>
+                          {isAtivo ? (
+                            <span className="text-amber-700 dark:text-amber-400 font-extrabold">
+                              ✓ ATIVO AGORA
+                            </span>
+                          ) : (
+                            <span className="text-blue-600 font-bold">Clique para Ativar →</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Cadastrar Novo Prédio no SaaS */}
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!novoPredioNome.trim()) return;
+                  setCriandoPredio(true);
+                  try {
+                    const res = await fetch("/api/condominios", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        nome: novoPredioNome,
+                        cnpj: novoPredioCnpj,
+                        endereco: novoPredioEndereco,
+                        total_unidades: 150,
+                        plano: "ENTERPRISE",
+                      }),
+                    });
+                    if (res.ok) {
+                      const data = await res.json();
+                      setCondominios(data.condominios || []);
+                      setCondominioAtivo(data.condominio);
+                      setNovoPredioNome("");
+                      setNovoPredioCnpj("");
+                      setNovoPredioEndereco("");
+                      setMensagemAviso(`Novo prédio "${data.condominio.nome}" cadastrado com sucesso!`);
+                    }
+                  } finally {
+                    setCriandoPredio(false);
+                  }
+                }}
+                className="space-y-4 bg-gray-50 dark:bg-[#111a2e] p-5 rounded-2xl border border-gray-200/60 dark:border-gray-800"
+              >
+                <h4 className="font-bold text-sm text-[#0A2540] dark:text-white">
+                  ➕ Cadastrar Novo Prédio / Condomínio (SaaS)
+                </h4>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">
+                    Nome do Condomínio / Prédio
+                  </label>
+                  <input
+                    value={novoPredioNome}
+                    onChange={(e) => setNovoPredioNome(e.target.value)}
+                    placeholder="Ex: Condomínio Grand Plaza"
+                    className="w-full p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#152033] text-xs font-semibold"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">
+                    CNPJ
+                  </label>
+                  <input
+                    value={novoPredioCnpj}
+                    onChange={(e) => setNovoPredioCnpj(e.target.value)}
+                    placeholder="00.000.000/0001-00"
+                    className="w-full p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#152033] text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">
+                    Endereço Completo
+                  </label>
+                  <input
+                    value={novoPredioEndereco}
+                    onChange={(e) => setNovoPredioEndereco(e.target.value)}
+                    placeholder="Av. Paulista, 1000 - São Paulo/SP"
+                    className="w-full p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#152033] text-xs"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={criandoPredio}
+                  className="w-full bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold py-3 rounded-xl text-xs transition-all shadow-sm cursor-pointer"
+                >
+                  {criandoPredio ? "Cadastrando..." : "⚡ Cadastrar Prédio no Banco de Dados"}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 
