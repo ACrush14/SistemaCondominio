@@ -59,6 +59,23 @@ Fluxo: o morador gera um QR Code (validade 24h) na Área do Morador; o porteiro 
 - Ler via câmera: biblioteca `html5-qrcode`, componente `Html5QrcodeScanner` montado numa `<div id="leitor-qr">` (`portaria/page.tsx`). Ele mesmo cuida da permissão de câmera e da interface de escaneamento.
 - Essa tabela/fluxo é **separado** da tabela/rota antiga `visitantes` (registro manual pelo porteiro, sem QR, ainda em memória — ver seção de Persistência acima).
 
+### Teste de ponta a ponta do leitor de QR Code (2026-07-13) — bug real encontrado e corrigido
+
+O ambiente onde o Claude roda não tem câmera física, então nunca foi possível testar "apontar uma câmera de verdade pro QR Code". Mas o `html5-qrcode` (a mesma biblioteca usada em `portaria/page.tsx`) tem, por padrão, uma opção alternativa na própria UI: **"Scan an Image File"** — ele deixa escolher uma imagem do disco em vez de usar a câmera, e usa exatamente o mesmo decodificador interno. Isso permitiu simular o fluxo completo sem hardware: gerou-se um código real via `POST /api/condominio/visitas`, uma imagem de QR real com esse código (biblioteca `qrcode`, a mesma que o app usa), e essa imagem foi injetada no `<input type="file">` da página via um Chrome real conectado (extensão `claude-in-chrome`), simulando o que aconteceria se o porteiro escolhesse essa opção manualmente.
+
+**Bug encontrado:** em `portaria/page.tsx`, o callback de sucesso do scanner chamava `scanner.pause(true)` incondicionalmente antes de validar o código:
+```ts
+(codigoLido) => {
+  scanner.pause(true); // lança exceção síncrona se a leitura veio de arquivo, não de câmera ao vivo
+  validarCodigo(codigoLido).finally(() => { ... });
+},
+```
+Quando a leitura vem de uma imagem de arquivo (não de um stream de câmera ativo), o estado interno do `Html5QrcodeScanner` não é `SCANNING`, e `pause(true)` lança uma exceção **síncrona** — isso aborta a função inteira antes mesmo de chamar `validarCodigo(codigoLido)`. Resultado: o código nunca era validado, a liberação nunca acontecia, e o porteiro não via nenhum feedback de erro (nem sucesso, nem falha — silêncio total). Confirmado batendo direto no Postgres: o `status` do código de teste continuava `PENDENTE` depois de "escanear" a imagem.
+
+**Correção:** envolver `scanner.pause(true)` (e o `scanner.resume()` do `setTimeout`) em `try/catch`, já que pausar é só uma conveniência de UX (evita reprocessar o mesmo frame em câmera ao vivo) — não deveria impedir a validação de rodar. Depois da correção, o mesmo teste (reinjetando a mesma imagem) mostrou `"Acesso liberado: Carlos Teste Camera (Apto 301)"` na tela, e o `status` no Postgres virou `USADO`.
+
+**O que isso prova e o que ainda não prova:** o pipeline completo decodificar → validar → liberar está confirmado funcionando de ponta a ponta, incluindo o caminho de erro que só existe quando a leitura não vem de uma câmera ativa (e que agora está corrigido para os dois casos: câmera e arquivo). O que continua não testado é o hardware em si — apontar uma câmera de verdade, com foco/iluminação reais, ainda depende de um dispositivo físico do usuário.
+
 ## Enquetes & Votações em Tempo Real — implementado nesta sessão (2026-07-12)
 
 O módulo de enquetes deixou de ser um mockup visual e agora é integrado com PostgreSQL (Neon).
