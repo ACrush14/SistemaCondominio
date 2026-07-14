@@ -607,6 +607,38 @@ Introduzido o framework de testes automatizados **Vitest** (`vitest` + `@vitest/
 - Verificação de tipagem (`npx tsc --noEmit`) concluída sem erros (`0 errors`).
 - Build de produção (`npm run build` na pasta `frontend/`) executado sem erros ou conflitos com o compilador do Next.js.
 
+---
+
+## Monitoramento de Erros em Produção e Dev com Sentry SDK (2026-07-14)
+
+Implementada a instrumentação de nível empresarial e rastreamento de exceções com o SDK oficial `@sentry/nextjs` (Next.js 16 App Router), sem fallbacks inseguros de DSN e de forma 100% tolerante a ambientes locais sem DSN configurado.
+
+### O que mudou
+
+1. **Arquivos de Configuração por Contexto (`frontend/src/`)**:
+   - `src/sentry.client.config.ts`: inicializa o cliente com `dsn: process.env.NEXT_PUBLIC_SENTRY_DSN` e condiciona o funcionamento (`enabled: Boolean(...)`), desativando silenciosamente quando ausente no dev local.
+   - `src/sentry.server.config.ts`: inicializa o ambiente Node (`dsn: process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN`).
+   - `src/sentry.edge.config.ts`: inicializa o ambiente Edge / Middleware.
+2. **Hook de Instrumentação (`frontend/src/instrumentation.ts`)**:
+   - Exporta `register()` carregando dinamicamente as configurações do servidor e edge de acordo com `process.env.NEXT_RUNTIME`.
+   - Exporta o gancho `onRequestError = Sentry.captureRequestError` para interceptação automática e envio de falhas não tratadas nas requisições ao Next.js.
+3. **Empacotador do Next.js (`frontend/next.config.ts`)**:
+   - Envolvido `nextConfig` com `withSentryConfig(nextConfig, { org, project, silent: true, widenClientFileUpload: true })` para geração e upload automatizado de sourcemaps de depuração no build de produção da Vercel.
+4. **Endpoint de Verificação e Diagnóstico (`frontend/src/app/api/sentry-teste/route.ts`)**:
+   - Criada rota (suportando `GET` e `POST`) que verifica se `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` estão configurados.
+   - Caso não haja DSN, responde JSON limpo e explicativo: `{ sucesso: true, sentryAtivo: false, mensagem: "Sentry está inativo neste ambiente pois as variáveis ... não estão configuradas" }`.
+   - Caso haja DSN ativo, dispara exceção simulada capturada via `Sentry.captureException(...)` e devolve o `eventId` do evento de monitoramento ao chamador.
+
+### Testado
+
+- Executado teste contra o endpoint `/api/sentry-teste` (`GET` e `POST`) via `npx tsx`:
+  - **Sem DSN no ambiente:** Retorna status HTTP `200` confirmando `sentryAtivo: false` e mensagem informativa de desativação silenciosa, sem exceções nem quebra.
+  - **Com DSN simulado no ambiente:** Retorna status HTTP `200` confirmando `sentryAtivo: true` acompanhado dos `eventId`s reais gerados pela captura do SDK do Sentry.
+- Suíte Vitest rodada com `npm run test`: **14/14 testes unitários aprovados em 324ms**.
+- TypeScript (`npx tsc --noEmit`) verificado com sucesso sem erros.
+- Build de produção (`npm run build` na pasta `frontend/`) concluído sem erros nem warnings de compilação ou depreciação.
+
+
 
 
 
