@@ -52,7 +52,7 @@ export async function garantirTabelaNotificacoes() {
   tabelaVerificada = true;
 }
 
-export async function listarNotificacoes(limite = 30) {
+export async function listarNotificacoes(limite = 30, condominioId = 1) {
   await garantirTabelaNotificacoes();
   const res = await pool.query(
     `SELECT
@@ -67,9 +67,10 @@ export async function listarNotificacoes(limite = 30) {
       tipo_evento,
       TO_CHAR(enviado_em AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY HH24:MI:SS') AS enviado_em
     FROM notificacoes_enviadas
+    WHERE condominio_id = $1
     ORDER BY id DESC
-    LIMIT $1`,
-    [limite]
+    LIMIT $2`,
+    [condominioId, limite]
   );
   return res.rows;
 }

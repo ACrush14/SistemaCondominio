@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../../lib/store/db";
 import { listarLivroTurno, garantirTabelaLivroTurno } from "../../../../lib/store/livroTurnoDb";
+import { obterCondominioId } from "../../../../lib/tenant";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const registros = await listarLivroTurno();
+    const condominioId = obterCondominioId(req);
+    const registros = await listarLivroTurno(condominioId);
     return NextResponse.json(registros);
   } catch (erro: unknown) {
     console.error("Erro ao listar livro de turno:", erro);
@@ -16,6 +18,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     await garantirTabelaLivroTurno();
+    const condominioId = obterCondominioId(req);
     const body = await req.json();
 
     const porteiro_nome = (body.porteiro_nome || "Porteiro Plantonista").trim();
@@ -29,13 +32,13 @@ export async function POST(req: Request) {
     }
 
     const insert = await pool.query(
-      `INSERT INTO livro_turno_portaria (porteiro_nome, turno, assunto, prioridade, descricao, lido_por)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO livro_turno_portaria (porteiro_nome, turno, assunto, prioridade, descricao, lido_por, condominio_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id`,
-      [porteiro_nome, turno, assunto, prioridade, descricao, JSON.stringify([porteiro_nome])]
+      [porteiro_nome, turno, assunto, prioridade, descricao, JSON.stringify([porteiro_nome]), condominioId]
     );
 
-    const registrosAtualizados = await listarLivroTurno();
+    const registrosAtualizados = await listarLivroTurno(condominioId);
     return NextResponse.json(registrosAtualizados, { status: 201 });
   } catch (erro: unknown) {
     console.error("Erro ao registrar livro de turno:", erro);

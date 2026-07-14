@@ -9,7 +9,7 @@ export async function POST(req: Request) {
     const emailLimpo = (email || "").trim().toLowerCase();
 
     const resultado = await pool.query(
-      "SELECT id, nome, email, senha_hash, perfil, unidade FROM usuarios WHERE email = $1",
+      "SELECT id, nome, email, senha_hash, perfil, unidade, condominio_id FROM usuarios WHERE email = $1",
       [emailLimpo]
     );
     const usuario = resultado.rows[0];
@@ -29,6 +29,7 @@ export async function POST(req: Request) {
         nome: usuario.nome,
         perfil: usuario.perfil,
         unidade: usuario.unidade,
+        condominio_id: usuario.condominio_id,
       },
       process.env.JWT_SECRET!,
       { expiresIn: "1d" }

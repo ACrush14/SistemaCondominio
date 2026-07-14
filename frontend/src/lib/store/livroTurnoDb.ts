@@ -54,10 +54,10 @@ export async function garantirTabelaLivroTurno() {
   tabelaVerificada = true;
 }
 
-export async function listarLivroTurno() {
+export async function listarLivroTurno(condominioId = 1) {
   await garantirTabelaLivroTurno();
-  const res = await pool.query(`
-    SELECT
+  const res = await pool.query(
+    `SELECT
       id,
       porteiro_nome,
       turno,
@@ -67,7 +67,9 @@ export async function listarLivroTurno() {
       COALESCE(lido_por, '[]'::jsonb) AS lido_por,
       TO_CHAR(criado_em AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY HH24:MI') AS criado_em
     FROM livro_turno_portaria
-    ORDER BY id DESC
-  `);
+    WHERE condominio_id = $1
+    ORDER BY id DESC`,
+    [condominioId]
+  );
   return res.rows;
 }

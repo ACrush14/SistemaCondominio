@@ -22,10 +22,10 @@ export async function garantirTabelaPanico() {
   tabelaVerificada = true;
 }
 
-export async function listarAlertasPanico() {
+export async function listarAlertasPanico(condominioId = 1) {
   await garantirTabelaPanico();
-  const res = await pool.query(`
-    SELECT
+  const res = await pool.query(
+    `SELECT
       id,
       porteiro_nome,
       tipo_emergencia,
@@ -36,10 +36,12 @@ export async function listarAlertasPanico() {
       TO_CHAR(criado_em AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY HH24:MI:SS') AS criado_em,
       TO_CHAR(resolvido_em AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY HH24:MI:SS') AS resolvido_em
     FROM alertas_panico
+    WHERE condominio_id = $1
     ORDER BY
       CASE WHEN status = 'ATIVO' THEN 0 ELSE 1 END,
       id DESC
-    LIMIT 20
-  `);
+    LIMIT 20`,
+    [condominioId]
+  );
   return res.rows;
 }

@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../../lib/store/db";
 import { listarAlertasPanico, garantirTabelaPanico } from "../../../../lib/store/panicoDb";
+import { obterCondominioId } from "../../../../lib/tenant";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const alertas = await listarAlertasPanico();
+    const condominioId = obterCondominioId(req);
+    const alertas = await listarAlertasPanico(condominioId);
     const ativos = alertas.filter((a) => a.status === "ATIVO");
     return NextResponse.json({ alertas, total_ativos: ativos.length });
   } catch (erro: unknown) {
@@ -17,6 +19,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     await garantirTabelaPanico();
+    const condominioId = obterCondominioId(req);
     const body = await req.json();
 
     const porteiro_nome = (body.porteiro_nome || "Porteiro Plantonista").trim();
@@ -25,13 +28,13 @@ export async function POST(req: Request) {
     const observacao = (body.observacao || "").trim();
 
     const res = await pool.query(
-      `INSERT INTO alertas_panico (porteiro_nome, tipo_emergencia, localizacao, observacao, status)
-       VALUES ($1, $2, $3, $4, 'ATIVO')
+      `INSERT INTO alertas_panico (porteiro_nome, tipo_emergencia, localizacao, observacao, status, condominio_id)
+       VALUES ($1, $2, $3, $4, 'ATIVO', $5)
        RETURNING id`,
-      [porteiro_nome, tipo_emergencia, localizacao, observacao]
+      [porteiro_nome, tipo_emergencia, localizacao, observacao, condominioId]
     );
 
-    const alertas = await listarAlertasPanico();
+    const alertas = await listarAlertasPanico(condominioId);
     return NextResponse.json(
       { mensagem: "Alerta de Pânico acionado com sucesso!", alertas },
       { status: 201 }

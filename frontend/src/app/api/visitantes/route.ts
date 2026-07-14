@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../lib/store/db";
 import { listarVisitantes, garantirTabelaVisitantes } from "../../../lib/store/visitantesDb";
+import { obterCondominioId } from "../../../lib/tenant";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const visitantes = await listarVisitantes();
+    const condominioId = obterCondominioId(req);
+    const visitantes = await listarVisitantes(condominioId);
     return NextResponse.json(visitantes);
   } catch (erro: unknown) {
     console.error("Erro ao listar visitantes:", erro);
@@ -16,6 +18,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     await garantirTabelaVisitantes();
+    const condominioId = obterCondominioId(req);
     const body = await req.json();
 
     const nome = (body.nome || "Visitante Não Identificado").trim();
@@ -24,10 +27,10 @@ export async function POST(req: Request) {
     const unidade_destino = (body.unidade_destino || "-").trim();
 
     const res = await pool.query(
-      `INSERT INTO visitantes (nome, documento, placa_veiculo, unidade_destino, status)
-       VALUES ($1, $2, $3, $4, 'ENTROU')
+      `INSERT INTO visitantes (nome, documento, placa_veiculo, unidade_destino, status, condominio_id)
+       VALUES ($1, $2, $3, $4, 'ENTROU', $5)
        RETURNING id, nome, documento, placa_veiculo, unidade_destino, status`,
-      [nome, documento, placa_veiculo, unidade_destino]
+      [nome, documento, placa_veiculo, unidade_destino, condominioId]
     );
 
     return NextResponse.json(res.rows[0], { status: 201 });

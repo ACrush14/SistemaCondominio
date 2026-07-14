@@ -30,10 +30,10 @@ export async function garantirTabelaVisitantes() {
   tabelaVerificada = true;
 }
 
-export async function listarVisitantes() {
+export async function listarVisitantes(condominioId = 1) {
   await garantirTabelaVisitantes();
-  const res = await pool.query(`
-    SELECT
+  const res = await pool.query(
+    `SELECT
       id,
       nome,
       documento,
@@ -42,7 +42,9 @@ export async function listarVisitantes() {
       status,
       TO_CHAR(data_entrada AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY HH24:MI') AS data_entrada
     FROM visitantes
-    ORDER BY id DESC
-  `);
+    WHERE condominio_id = $1
+    ORDER BY id DESC`,
+    [condominioId]
+  );
   return res.rows;
 }

@@ -38,8 +38,13 @@ export function proxy(req: NextRequest) {
   }
 
   try {
-    jwt.verify(token, CHAVE_SECRETA);
-    return NextResponse.next();
+    const payload = jwt.verify(token, CHAVE_SECRETA) as { condominio_id?: number };
+
+    // Sempre sobrescreve com o valor verificado do token — nunca confia num header vindo do cliente.
+    const headers = new Headers(req.headers);
+    headers.set("x-condominio-id", String(payload.condominio_id ?? 1));
+
+    return NextResponse.next({ request: { headers } });
   } catch (_erro) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json(

@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../../lib/store/db";
 import { garantirTabelasEnquetes, formatarEnquetes } from "../../../../lib/store/enquetesDb";
+import { obterCondominioId } from "../../../../lib/tenant";
 
 export async function GET(req: Request) {
   try {
+    const condominioId = obterCondominioId(req);
     const { searchParams } = new URL(req.url);
     const unidade = searchParams.get("unidade");
 
-    const lista = await formatarEnquetes(unidade);
+    const lista = await formatarEnquetes(unidade, condominioId);
     return NextResponse.json(lista);
   } catch (_erro) {
     return NextResponse.json({ erro: "Erro ao buscar enquetes." }, { status: 500 });
@@ -17,6 +19,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     await garantirTabelasEnquetes();
+    const condominioId = obterCondominioId(req);
     const body = await req.json();
 
     if (!body.titulo || !Array.isArray(body.opcoes) || body.opcoes.length < 2) {
@@ -27,18 +30,19 @@ export async function POST(req: Request) {
     }
 
     const resultado = await pool.query(
-      `INSERT INTO enquetes (titulo, descricao, opcoes, status, criada_por)
-       VALUES ($1, $2, $3, 'ATIVA', $4)
+      `INSERT INTO enquetes (titulo, descricao, opcoes, status, criada_por, condominio_id)
+       VALUES ($1, $2, $3, 'ATIVA', $4, $5)
        RETURNING id`,
       [
         body.titulo,
         body.descricao || "",
         JSON.stringify(body.opcoes),
         body.criada_por || "Anderson de Lima (Síndico)",
+        condominioId,
       ]
     );
 
-    const lista = await formatarEnquetes();
+    const lista = await formatarEnquetes(null, condominioId);
     const criada = lista.find((e) => e.id === resultado.rows[0].id) || lista[0];
     return NextResponse.json(criada, { status: 201 });
   } catch (_erro) {

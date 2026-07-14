@@ -82,20 +82,25 @@ export async function garantirTabelasEnquetes() {
   tabelasVerificadas = true;
 }
 
-export async function formatarEnquetes(unidade?: string | null) {
+export async function formatarEnquetes(unidade?: string | null, condominioId = 1) {
   await garantirTabelasEnquetes();
 
-  const enquetesRes = await pool.query(`
-    SELECT id, titulo, descricao, opcoes, status, criada_por,
-           TO_CHAR(criado_em, 'DD/MM/YYYY') AS data
-    FROM enquetes
-    ORDER BY id DESC
-  `);
+  const enquetesRes = await pool.query(
+    `SELECT id, titulo, descricao, opcoes, status, criada_por,
+            TO_CHAR(criado_em, 'DD/MM/YYYY') AS data
+     FROM enquetes
+     WHERE condominio_id = $1
+     ORDER BY id DESC`,
+    [condominioId]
+  );
 
-  const votosRes = await pool.query(`
-    SELECT enquete_id, opcao_index, unidade
-    FROM enquete_votos
-  `);
+  const votosRes = await pool.query(
+    `SELECT v.enquete_id, v.opcao_index, v.unidade
+     FROM enquete_votos v
+     JOIN enquetes e ON e.id = v.enquete_id
+     WHERE e.condominio_id = $1`,
+    [condominioId]
+  );
 
   return enquetesRes.rows.map((e) => {
     let opcoes: string[] = [];

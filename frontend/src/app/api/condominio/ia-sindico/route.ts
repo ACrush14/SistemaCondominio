@@ -1,28 +1,32 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../../lib/store/db";
 import { perguntarGemini } from "../../../../lib/gemini";
+import { obterCondominioId } from "../../../../lib/tenant";
 
-async function montarContexto(): Promise<string> {
+async function montarContexto(condominioId: number): Promise<string> {
   const [ocorrencias, panico, encomendas] = await Promise.all([
     pool.query(
       `SELECT titulo, local, unidade, categoria, status
        FROM ocorrencias
-       WHERE status != 'RESOLVIDO'
+       WHERE status != 'RESOLVIDO' AND condominio_id = $1
        ORDER BY criado_em DESC
-       LIMIT 10`
+       LIMIT 10`,
+      [condominioId]
     ),
     pool.query(
       `SELECT tipo_emergencia, localizacao, observacao
        FROM alertas_panico
-       WHERE status = 'ATIVO'
-       ORDER BY criado_em DESC`
+       WHERE status = 'ATIVO' AND condominio_id = $1
+       ORDER BY criado_em DESC`,
+      [condominioId]
     ),
     pool.query(
       `SELECT unidade, remetente, status
        FROM encomendas
-       WHERE status != 'ENTREGUE'
+       WHERE status != 'ENTREGUE' AND condominio_id = $1
        ORDER BY criado_em DESC
-       LIMIT 10`
+       LIMIT 10`,
+      [condominioId]
     ),
   ]);
 
@@ -67,13 +71,14 @@ Responda em português, de forma objetiva e executiva (no máximo 4 frases curta
 
 export async function POST(req: Request) {
   try {
+    const condominioId = obterCondominioId(req);
     const { pergunta } = await req.json();
     const texto = (pergunta || "").trim();
     if (!texto) {
       return NextResponse.json({ erro: "A pergunta é obrigatória." }, { status: 400 });
     }
 
-    const contexto = await montarContexto();
+    const contexto = await montarContexto(condominioId);
     const prompt = `Dados atuais do condomínio:\n\n${contexto}\n\nPergunta do síndico: ${texto}`;
 
     const resposta_ia = await perguntarGemini(prompt, INSTRUCAO);

@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../../lib/store/db";
 import { listarBoletos, garantirTabelaFinanceiro } from "../../../../lib/store/financeiroDb";
+import { obterCondominioId } from "../../../../lib/tenant";
 
 export async function GET(req: Request) {
   try {
+    const condominioId = obterCondominioId(req);
     const { searchParams } = new URL(req.url);
     const unidade = searchParams.get("unidade") || undefined;
-    const boletos = await listarBoletos(unidade);
+    const boletos = await listarBoletos(unidade, condominioId);
     return NextResponse.json(boletos);
   } catch (erro: unknown) {
     console.error("Erro ao listar boletos:", erro);
@@ -18,6 +20,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     await garantirTabelaFinanceiro();
+    const condominioId = obterCondominioId(req);
     const body = await req.json();
 
     const unidade = (body.unidade || "Apto 301").trim();
@@ -38,8 +41,8 @@ export async function POST(req: Request) {
     const insert = await pool.query(
       `INSERT INTO boletos_financeiro (
         unidade, competencia, valor_num, data_vencimento, status,
-        codigo_barras, pix_copia_cola, detalhamento
-      ) VALUES ($1, $2, $3, $4, 'PENDENTE', $5, $6, $7::jsonb)
+        codigo_barras, pix_copia_cola, detalhamento, condominio_id
+      ) VALUES ($1, $2, $3, $4, 'PENDENTE', $5, $6, $7::jsonb, $8)
       RETURNING id`,
       [
         unidade,
@@ -49,10 +52,11 @@ export async function POST(req: Request) {
         codigo_barras,
         pix_copia_cola,
         JSON.stringify(detalhamento),
+        condominioId,
       ]
     );
 
-    const listaAtualizada = await listarBoletos(unidade);
+    const listaAtualizada = await listarBoletos(unidade, condominioId);
     return NextResponse.json(listaAtualizada, { status: 201 });
   } catch (erro: unknown) {
     console.error("Erro ao criar boleto:", erro);

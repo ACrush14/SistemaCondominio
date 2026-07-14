@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { pool } from "../../../../lib/store/db";
 import { listarNotificacoes, garantirTabelaNotificacoes } from "../../../../lib/store/notificacoesDb";
+import { obterCondominioId } from "../../../../lib/tenant";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -10,9 +11,10 @@ function extrairEmail(contato: string): string | null {
   return match ? match[0] : null;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const log = await listarNotificacoes();
+    const condominioId = obterCondominioId(req);
+    const log = await listarNotificacoes(30, condominioId);
     return NextResponse.json(log);
   } catch (erro: unknown) {
     console.error("Erro ao listar notificações:", erro);
@@ -24,6 +26,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     await garantirTabelaNotificacoes();
+    const condominioId = obterCondominioId(req);
     const body = await req.json();
 
     const destinatario_nome = (body.destinatario_nome || "Morador do Condomínio").trim();
@@ -72,13 +75,13 @@ export async function POST(req: Request) {
 
     const insert = await pool.query(
       `INSERT INTO notificacoes_enviadas (
-        destinatario_nome, unidade, canal, contato, assunto, mensagem, status, tipo_evento
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        destinatario_nome, unidade, canal, contato, assunto, mensagem, status, tipo_evento, condominio_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING id`,
-      [destinatario_nome, unidade, canal, contato, assunto, mensagem, status, tipo_evento]
+      [destinatario_nome, unidade, canal, contato, assunto, mensagem, status, tipo_evento, condominioId]
     );
 
-    const logAtualizado = await listarNotificacoes();
+    const logAtualizado = await listarNotificacoes(30, condominioId);
     return NextResponse.json(
       {
         sucesso: status === "ENVIADO",

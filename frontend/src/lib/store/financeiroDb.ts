@@ -86,7 +86,7 @@ export async function garantirTabelaFinanceiro() {
   tabelaVerificada = true;
 }
 
-export async function listarBoletos(unidadeFiltro?: string) {
+export async function listarBoletos(unidadeFiltro?: string, condominioId = 1) {
   await garantirTabelaFinanceiro();
 
   // Atualização dinâmica dos vencidos
@@ -108,11 +108,12 @@ export async function listarBoletos(unidadeFiltro?: string) {
       pix_copia_cola,
       detalhamento
     FROM boletos_financeiro
+    WHERE condominio_id = $1
   `;
-  const params: unknown[] = [];
+  const params: unknown[] = [condominioId];
 
   if (unidadeFiltro && unidadeFiltro !== "TODOS" && unidadeFiltro !== "Administração (Apto 501)") {
-    query += " WHERE unidade = $1";
+    query += " AND unidade = $2";
     params.push(unidadeFiltro);
   }
 

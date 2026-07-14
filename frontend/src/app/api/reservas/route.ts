@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../lib/store/db";
+import { obterCondominioId } from "../../../lib/tenant";
 
 interface ReservaRow {
   id: number;
@@ -23,12 +24,15 @@ function comHorarioExibicao(r: ReservaRow) {
   };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const condominioId = obterCondominioId(req);
   const resultado = await pool.query<ReservaRow>(
     `SELECT id, area, TO_CHAR(data_reserva, 'YYYY-MM-DD') AS data_reserva,
             horario_inicio, horario_fim, dia_inteiro, convidados, observacao, morador, status
      FROM reservas
-     ORDER BY data_reserva ASC, id ASC`
+     WHERE condominio_id = $1
+     ORDER BY data_reserva ASC, id ASC`,
+    [condominioId]
   );
 
   return NextResponse.json(resultado.rows.map(comHorarioExibicao));
@@ -36,6 +40,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const condominioId = obterCondominioId(req);
     const body = await req.json();
 
     // Regra dos 30 dias
@@ -59,8 +64,8 @@ export async function POST(req: Request) {
     const fimFormatado = body.dia_inteiro ? "23:00" : body.horario_fim || "22:00";
 
     const resultado = await pool.query<ReservaRow>(
-      `INSERT INTO reservas (area, data_reserva, horario_inicio, horario_fim, dia_inteiro, convidados, observacao, morador)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO reservas (area, data_reserva, horario_inicio, horario_fim, dia_inteiro, convidados, observacao, morador, condominio_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING id, area, TO_CHAR(data_reserva, 'YYYY-MM-DD') AS data_reserva,
                  horario_inicio, horario_fim, dia_inteiro, convidados, observacao, morador, status`,
       [
@@ -72,6 +77,7 @@ export async function POST(req: Request) {
         Number(body.convidados) || 0,
         body.observacao || "",
         "Beatriz Mendonça (Apto 101)",
+        condominioId,
       ]
     );
 

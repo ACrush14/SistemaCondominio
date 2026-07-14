@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../../../lib/store/db";
+import { obterCondominioId } from "../../../../../lib/tenant";
 
 export async function POST(req: Request) {
+  const condominioId = obterCondominioId(req);
   const { codigo } = await req.json();
 
   const resultado = await pool.query(
-    "SELECT * FROM liberacoes_visita WHERE codigo = $1",
-    [(codigo || "").toUpperCase()]
+    "SELECT * FROM liberacoes_visita WHERE codigo = $1 AND condominio_id = $2",
+    [(codigo || "").toUpperCase(), condominioId]
   );
   const liberacao = resultado.rows[0];
 
