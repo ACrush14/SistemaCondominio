@@ -9,11 +9,27 @@ interface Usuario {
   unidade: string;
 }
 
+interface CondominioVinculo {
+  id: number;
+  nome: string;
+  slug: string;
+}
+
 export default function UsuariosPage() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [erro, setErro] = useState("");
   const [carregando, setCarregando] = useState(true);
   const [modalAberto, setModalAberto] = useState(false);
+
+  // Estados do Modal de Vínculos SaaS
+  const [usuarioVinculoSelecionado, setUsuarioVinculoSelecionado] = useState<Usuario | null>(null);
+  const [modalVinculosAberto, setModalVinculosAberto] = useState(false);
+  const [carregandoVinculos, setCarregandoVinculos] = useState(false);
+  const [todosCondominios, setTodosCondominios] = useState<CondominioVinculo[]>([]);
+  const [vinculosSelecionados, setVinculosSelecionados] = useState<number[]>([]);
+  const [erroVinculos, setErroVinculos] = useState("");
+  const [sucessoVinculos, setSucessoVinculos] = useState("");
+  const [salvandoVinculos, setSalvandoVinculos] = useState(false);
 
   // Estados do Formulário de Novo Usuário
   const [nome, setNome] = useState("");
@@ -102,6 +118,61 @@ export default function UsuariosPage() {
       buscarUsuarios();
     } catch (err) {
       setErro("Erro ao remover usuário.");
+    }
+  };
+
+  const abrirModalVinculos = async (u: Usuario) => {
+    setUsuarioVinculoSelecionado(u);
+    setModalVinculosAberto(true);
+    setCarregandoVinculos(true);
+    setErroVinculos("");
+    setSucessoVinculos("");
+    try {
+      const res = await fetch(`/api/usuarios/${u.id}/condominios`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.erro || "Falha ao carregar vínculos de condomínios.");
+      }
+      const data = await res.json();
+      setTodosCondominios(data.todos_condominios || []);
+      setVinculosSelecionados(data.condominios_vinculados || []);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setErroVinculos(msg);
+    } finally {
+      setCarregandoVinculos(false);
+    }
+  };
+
+  const toggleVinculo = (cid: number) => {
+    setVinculosSelecionados((prev) =>
+      prev.includes(cid) ? prev.filter((id) => id !== cid) : [...prev, cid]
+    );
+  };
+
+  const salvarVinculos = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!usuarioVinculoSelecionado) return;
+    setErroVinculos("");
+    setSucessoVinculos("");
+    setSalvandoVinculos(true);
+    try {
+      const res = await fetch(`/api/usuarios/${usuarioVinculoSelecionado.id}/condominios`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ condominios_ids: vinculosSelecionados }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErroVinculos(data.erro || "Erro ao salvar vínculos de condomínios.");
+        return;
+      }
+      setSucessoVinculos(data.mensagem || "✅ Vínculos atualizados com sucesso!");
+      setVinculosSelecionados(data.condominios_vinculados || vinculosSelecionados);
+    } catch (err: unknown) {
+      setErroVinculos("Falha na comunicação com o servidor.");
+    } finally {
+      setSalvandoVinculos(false);
     }
   };
 
@@ -464,10 +535,17 @@ export default function UsuariosPage() {
                         {user.perfil}
                       </span>
                     </td>
-                    <td className="p-4 text-right">
+                    <td className="p-4 text-right space-x-2 flex items-center justify-end">
+                      <button
+                        onClick={() => abrirModalVinculos(user)}
+                        className="bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                        title="Gerenciar acessos a condomínios no SaaS"
+                      >
+                        <span>🏢</span> Vínculos SaaS
+                      </button>
                       <button
                         onClick={() => deletarUsuario(user.id)}
-                        className="text-red-600 hover:text-red-800 font-bold text-xs"
+                        className="text-red-600 hover:text-red-800 font-bold text-xs px-2 py-1.5 transition-all cursor-pointer"
                       >
                         Revogar
                       </button>
@@ -581,6 +659,111 @@ export default function UsuariosPage() {
                 {salvando ? "Salvando no Banco..." : "Cadastrar Usuário"}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE GERENCIAMENTO DE VÍNCULOS SAAS */}
+      {modalVinculosAberto && usuarioVinculoSelecionado && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-[#162238] p-6 rounded-3xl shadow-2xl w-full max-w-lg relative border border-gray-100 dark:border-gray-700 space-y-4 max-h-[90vh] flex flex-col justify-between">
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <div>
+                  <h2 className="text-xl font-bold text-[#0A2540] dark:text-white">
+                    🏢 Vínculos SaaS Multi-Condomínio
+                  </h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    Usuário: <span className="font-bold text-[#0A2540] dark:text-white">{usuarioVinculoSelecionado.nome}</span> ({usuarioVinculoSelecionado.email})
+                  </p>
+                </div>
+                <button
+                  onClick={() => setModalVinculosAberto(false)}
+                  aria-label="Fechar modal de vínculos de condomínios"
+                  className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 flex items-center justify-center font-bold text-sm cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {erroVinculos && (
+                <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300 p-3 rounded-xl text-xs font-medium my-2">
+                  {erroVinculos}
+                </div>
+              )}
+
+              {sucessoVinculos && (
+                <div className="bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 p-3 rounded-xl text-xs font-medium my-2">
+                  {sucessoVinculos}
+                </div>
+              )}
+
+              {carregandoVinculos ? (
+                <div className="p-8 text-center text-gray-400 text-sm font-semibold">
+                  Carregando lista de condomínios e vínculos...
+                </div>
+              ) : (
+                <form onSubmit={salvarVinculos} className="space-y-4 mt-3">
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    <p className="text-xs font-bold text-gray-600 dark:text-gray-300 mb-2">
+                      Selecione os condomínios aos quais este usuário terá permissão de acesso e alternância:
+                    </p>
+                    {todosCondominios.map((cond) => {
+                      const selecionado = vinculosSelecionados.includes(cond.id);
+                      return (
+                        <label
+                          key={cond.id}
+                          className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                            selecionado
+                              ? "bg-blue-50/80 dark:bg-blue-900/20 border-blue-500 dark:border-blue-400 font-bold"
+                              : "bg-gray-50 dark:bg-[#111a2e] border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={selecionado}
+                              onChange={() => toggleVinculo(cond.id)}
+                              className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                            />
+                            <div>
+                              <p className="text-sm text-[#0A2540] dark:text-white">
+                                {cond.nome}
+                              </p>
+                              <p className="text-[11px] text-gray-400 font-normal">
+                                slug: {cond.slug} | id: #{cond.id}
+                              </p>
+                            </div>
+                          </div>
+                          {selecionado && (
+                            <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold">
+                              Vinculado
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  <div className="pt-3 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setModalVinculosAberto(false)}
+                      className="px-4 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-gray-700 dark:text-gray-300 font-bold text-xs transition-colors cursor-pointer"
+                    >
+                      Fechar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={salvandoVinculos || vinculosSelecionados.length === 0}
+                      className="px-5 py-2.5 rounded-xl bg-[#0A2540] dark:bg-blue-600 hover:bg-[#0A2540]/90 text-white font-bold text-xs transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                    >
+                      {salvandoVinculos ? "Salvando..." : "Salvar Vínculos"}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}

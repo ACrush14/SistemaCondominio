@@ -730,6 +730,30 @@ Implementado o envio real e automatizado de notificações oficiais via WhatsApp
 - Verificação de tipos via `npx tsc --noEmit` limpa (`0 errors`).
 - Build de produção (`npm run build`) compilado em 8.6s de forma estável.
 
+---
+
+## Gestão Visual de Vínculos SaaS Multi-Condomínio — Item 3 (2026-07-14)
+
+Criada a infraestrutura completa (API REST e Interface do Usuário) para vincular e desvincular usuários de condomínios adicionais na tabela `usuario_condominios`, substituindo a intervenção anterior que só podia ser realizada via comandos SQL diretos no banco.
+
+### O que mudou
+
+1. **Novos Endpoints em `frontend/src/app/api/usuarios/[id]/condominios/route.ts`**:
+   - `GET /api/usuarios/[id]/condominios`: Retorna os dados do usuário, a lista completa de condomínios cadastrados no SaaS (`condominios`) e um array com os IDs dos condomínios aos quais o usuário já está vinculado (`usuario_condominios`). Aplica rigorosamente o controle de acesso multi-tenant da Regra de Ouro 3, verificando permissão pelo condomínio ativo ou vínculos existentes.
+   - `POST /api/usuarios/[id]/condominios`: Recebe o array `condominios_ids`, valida que há pelo menos um condomínio selecionado, executa a atualização em transação (`BEGIN`/`COMMIT`/`ROLLBACK`) limpando e recriando os vínculos na tabela `usuario_condominios`. Caso o condomínio principal do usuário (`usuarios.condominio_id`) seja removido da lista, o sistema automaticamente ajusta-o para o primeiro item da nova lista, evitando inconsistências.
+2. **Interface na Gestão de Usuários (`frontend/src/app/(dashboard)/usuarios/page.tsx`)**:
+   - Adicionado o botão `🏢 Vínculos SaaS` ao lado do botão `Revogar` em cada linha da tabela de usuários.
+   - Implementado o modal interativo `🏢 Vínculos SaaS Multi-Condomínio`, que lista todos os condomínios do sistema em formato de cards selecionáveis com checkbox, exibindo nome, slug, ID e selo de "Vinculado".
+   - Permite ao administrador ou síndico habilitar ou desabilitar permissões de alternância entre condomínios com clique simples e feedback visual/sonoro imediato (`sucesso` / `erro`).
+
+### Testado
+
+- Executado teste de integração em banco real Neon (`npx tsx --env-file=.env.local test-vinculos-api.ts`) simulando consulta `GET` no usuário #7 (Anderson de Lima), adicionando novo vínculo ao condomínio #2 via `POST` e verificando que a resposta retornou `condominios_vinculados: [1, 2]` corretamente, depois revertendo ao estado original `[1]`.
+- Executado `npm run test`: 14/14 testes unitários no Vitest aprovados (`342ms`).
+- Verificação de tipos TypeScript `npx tsc --noEmit`: 100% limpa (`0 errors`).
+- Build de produção (`npm run build` na Vercel/Next.js 16.2.10): Compilado com sucesso em 9.2s, incluindo a nova rota dinâmica `/api/usuarios/[id]/condominios`.
+
+
 
 
 
