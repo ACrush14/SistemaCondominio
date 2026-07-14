@@ -59,3 +59,57 @@ export async function listarCondominios() {
   );
   return res.rows;
 }
+
+export async function atualizarCondominio(
+  id: number,
+  dados: {
+    nome?: string;
+    slug?: string;
+    cnpj?: string;
+    endereco?: string;
+    total_unidades?: number;
+    plano?: string;
+  }
+) {
+  await garantirTabelaCondominios();
+
+  const atual = await pool.query("SELECT * FROM condominios WHERE id = $1", [id]);
+  if (atual.rows.length === 0) {
+    throw new Error("Condomínio não encontrado.");
+  }
+
+  const base = atual.rows[0];
+  const nome = dados.nome !== undefined ? dados.nome.trim() : base.nome;
+  const slug =
+    dados.slug !== undefined ? dados.slug.trim() : dados.nome ? dados.nome.toLowerCase().replace(/[^a-z0-9]+/g, "-") : base.slug;
+  const cnpj = dados.cnpj !== undefined ? dados.cnpj.trim() : base.cnpj;
+  const endereco = dados.endereco !== undefined ? dados.endereco.trim() : base.endereco;
+  const total_unidades = dados.total_unidades !== undefined ? Number(dados.total_unidades) : base.total_unidades;
+  const plano = dados.plano !== undefined ? dados.plano.toUpperCase() : base.plano;
+
+  const res = await pool.query(
+    `UPDATE condominios
+     SET nome = $1, slug = $2, cnpj = $3, endereco = $4, total_unidades = $5, plano = $6
+     WHERE id = $7
+     RETURNING id, nome, slug, cnpj, endereco, total_unidades, plano`,
+    [nome, slug, cnpj, endereco, total_unidades, plano, id]
+  );
+
+  return res.rows[0];
+}
+
+export async function excluirCondominio(id: number) {
+  await garantirTabelaCondominios();
+
+  if (id === 1) {
+    throw new Error("Não é permitido excluir o condomínio principal/padrão do sistema (Tailson Executive).");
+  }
+
+  const check = await pool.query("SELECT id FROM condominios WHERE id = $1", [id]);
+  if (check.rows.length === 0) {
+    throw new Error("Condomínio não encontrado.");
+  }
+
+  await pool.query("DELETE FROM condominios WHERE id = $1", [id]);
+  return { sucesso: true };
+}

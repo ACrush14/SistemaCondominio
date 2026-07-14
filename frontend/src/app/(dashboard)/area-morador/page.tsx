@@ -44,6 +44,8 @@ interface BoletoFinanceiro {
 
 export default function AreaMoradorPage() {
   const [abaAtiva, setAbaAtiva] = useState<"GERAL" | "FINANCEIRO">("FINANCEIRO");
+  const [mensagemErro, setMensagemErro] = useState("");
+  const [mensagemSucesso, setMensagemSucesso] = useState("");
 
   // IA e Serviços
   const [perguntaIa, setPerguntaIa] = useState("");
@@ -72,9 +74,12 @@ export default function AreaMoradorPage() {
       if (res.ok) {
         const dados = await res.json();
         setBoletos(dados);
+      } else {
+        setMensagemErro("Não foi possível carregar os boletos financeiros.");
       }
-    } catch (_err) {
-      // ignora
+    } catch (err) {
+      console.error("Erro ao carregar boletos:", err);
+      setMensagemErro("Falha na conexão ao buscar boletos.");
     }
   }, []);
 
@@ -86,9 +91,14 @@ export default function AreaMoradorPage() {
     try {
       await navigator.clipboard.writeText(texto);
       setCopiadoTipo(tipo);
-      setTimeout(() => setCopiadoTipo(null), 3000);
-    } catch (_err) {
-      // ignora
+      setMensagemSucesso(tipo === "BARRAS" ? "Código de barras copiado!" : "Chave PIX copiada!");
+      setTimeout(() => {
+        setCopiadoTipo(null);
+        setMensagemSucesso("");
+      }, 3000);
+    } catch (err) {
+      console.error("Erro ao copiar texto:", err);
+      setMensagemErro("Não foi possível copiar o texto automaticamente.");
     }
   };
 
@@ -105,7 +115,14 @@ export default function AreaMoradorPage() {
           const atualizado = dados.find((b: BoletoFinanceiro) => b.id === id);
           if (atualizado) setBoletoSelecionado(atualizado);
         }
+        setMensagemSucesso("Pagamento processado com sucesso!");
+        setTimeout(() => setMensagemSucesso(""), 4000);
+      } else {
+        setMensagemErro("Falha ao processar pagamento do boleto.");
       }
+    } catch (err) {
+      console.error("Erro no pagamento:", err);
+      setMensagemErro("Erro de rede ao processar pagamento.");
     } finally {
       setPagandoId(null);
     }
@@ -153,12 +170,18 @@ export default function AreaMoradorPage() {
     fetch(`/api/condominio/encomendas?unidade=${encodeURIComponent(UNIDADE_LOGADA)}`)
       .then((res) => res.json())
       .then((data) => setEncomendas(data))
-      .catch(() => {});
+      .catch((err) => {
+        console.error("Erro ao carregar encomendas:", err);
+        setMensagemErro("Não foi possível carregar as encomendas.");
+      });
 
     fetch(`/api/condominio/enquetes?unidade=${encodeURIComponent(UNIDADE_LOGADA)}`)
       .then((res) => res.json())
       .then((data) => setEnquetes(data))
-      .catch(() => {});
+      .catch((err) => {
+        console.error("Erro ao carregar enquetes:", err);
+        setMensagemErro("Não foi possível carregar as enquetes.");
+      });
   }, []);
 
   const votarEnquete = async (enqueteId: number, opcaoIdx: number) => {
@@ -208,6 +231,19 @@ export default function AreaMoradorPage() {
 
   return (
     <div className="p-8 space-y-8 max-w-6xl mx-auto">
+      {mensagemErro && (
+        <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-2xl text-sm font-medium flex justify-between items-center shadow-sm">
+          <span>⚠️ {mensagemErro}</span>
+          <button onClick={() => setMensagemErro("")} className="font-bold cursor-pointer">✕</button>
+        </div>
+      )}
+      {mensagemSucesso && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl text-sm font-medium flex justify-between items-center shadow-sm">
+          <span>✅ {mensagemSucesso}</span>
+          <button onClick={() => setMensagemSucesso("")} className="font-bold cursor-pointer">✕</button>
+        </div>
+      )}
+
       {/* Cabeçalho */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
         <div>

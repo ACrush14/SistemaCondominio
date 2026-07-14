@@ -51,7 +51,10 @@ export default function PainelSindicoPage() {
     fetch("/api/condominio/enquetes")
       .then((res) => res.json())
       .then((data) => setEnquetes(data))
-      .catch(() => {});
+      .catch((err) => {
+        console.error("Erro ao carregar enquetes:", err);
+        setMensagemErro("Não foi possível carregar as enquetes.");
+      });
   };
 
   const carregarPanico = () => {
@@ -62,26 +65,39 @@ export default function PainelSindicoPage() {
           setAlertasPanico(data.alertas.filter((a: any) => a.status === "ATIVO"));
         }
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error("Erro ao verificar status de pânico:", err);
+      });
   };
 
   useEffect(() => {
     fetch("/api/condominio/ocorrencias")
       .then((res) => res.json())
       .then((data) => setOcorrencias(data))
-      .catch(() => {});
+      .catch((err) => {
+        console.error("Erro ao carregar ocorrências:", err);
+        setMensagemErro("Não foi possível carregar as ocorrências.");
+      });
 
     fetch("/api/usuarios")
       .then((res) => res.json())
       .then((data: { perfil: string }[]) => {
-        setTotalMoradores(data.filter((u) => u.perfil === "MORADOR").length);
+        if (Array.isArray(data)) {
+          setTotalMoradores(data.filter((u) => u.perfil === "MORADOR").length);
+        }
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error("Erro ao carregar usuários:", err);
+        setMensagemErro("Não foi possível carregar o total de moradores.");
+      });
 
     fetch("/api/condominio/comunicados")
       .then((res) => res.json())
       .then((data) => setComunicados(data))
-      .catch(() => {});
+      .catch((err) => {
+        console.error("Erro ao carregar comunicados:", err);
+        setMensagemErro("Não foi possível carregar os comunicados.");
+      });
 
     fetch("/api/auth/me")
       .then((res) => res.json())
@@ -89,7 +105,9 @@ export default function PainelSindicoPage() {
         setMeusCondominios(Array.isArray(data.condominios) ? data.condominios : [data.condominio_id ?? 1]);
         setCondominioIdReal(data.condominio_id ?? 1);
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error("Erro na autenticação inicial (/api/auth/me):", err);
+      });
 
     carregarEnquetes();
     carregarPanico();
@@ -107,6 +125,7 @@ export default function PainelSindicoPage() {
   const [novoTitulo, setNovoTitulo] = useState("");
   const [novoConteudo, setNovoConteudo] = useState("");
   const [mensagemAviso, setMensagemAviso] = useState("");
+  const [mensagemErro, setMensagemErro] = useState("");
 
   // Modal Nova Enquete
   const [modalEnquete, setModalEnquete] = useState(false);
@@ -120,6 +139,8 @@ export default function PainelSindicoPage() {
   // Modal Central de Notificações E-mail & WhatsApp
   const [modalNotificacao, setModalNotificacao] = useState(false);
   const [notificacoesLog, setNotificacoesLog] = useState<Array<{ id: number; destinatario_nome: string; canal: string; contato: string; assunto: string; mensagem: string; status: string; enviado_em: string }>>([]);
+  const [notificacoesTotal, setNotificacoesTotal] = useState(0);
+  const [notificacoesCarregandoMais, setNotificacoesCarregandoMais] = useState(false);
   const [notifDestinatario, setNotifDestinatario] = useState("João (Morador Tailson)");
   const [notifUnidade, setNotifUnidade] = useState("Apto 301");
   const [notifCanal, setNotifCanal] = useState<"EMAIL" | "WHATSAPP" | "AMBOS">("AMBOS");
@@ -128,17 +149,35 @@ export default function PainelSindicoPage() {
   const [notifMensagem, setNotifMensagem] = useState("");
   const [enviandoNotif, setEnviandoNotif] = useState(false);
 
-  const carregarNotificacoes = () => {
-    fetch("/api/condominio/notificacoes")
+  const carregarNotificacoes = (offset = 0, append = false) => {
+    if (offset > 0) setNotificacoesCarregandoMais(true);
+    fetch(`/api/condominio/notificacoes?limite=10&offset=${offset}`)
       .then((res) => res.json())
       .then((data) => {
-        if (Array.isArray(data)) setNotificacoesLog(data);
+        if (data && Array.isArray(data.notificacoes)) {
+          setNotificacoesLog((prev) => (append ? [...prev, ...data.notificacoes] : data.notificacoes));
+          if (typeof data.total === "number") setNotificacoesTotal(data.total);
+        } else if (Array.isArray(data)) {
+          setNotificacoesLog((prev) => (append ? [...prev, ...data] : data));
+          setNotificacoesTotal((prev) => (append ? prev + data.length : data.length));
+        }
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error("Erro ao carregar notificações:", err);
+        setMensagemErro("Falha ao carregar central de notificações.");
+      })
+      .finally(() => {
+        setNotificacoesCarregandoMais(false);
+      });
+  };
+
+  const carregarMaisNotificacoes = () => {
+    carregarNotificacoes(notificacoesLog.length, true);
   };
 
   // SaaS Multi-Tenant Condomínios / Prédios
-  const [condominios, setCondominios] = useState<Array<{ id: number; nome: string; slug: string; cnpj: string; endereco: string; total_unidades: number; plano: string }>>([]);
+  type CondominioItem = { id: number; nome: string; slug: string; cnpj: string; endereco: string; total_unidades: number; plano: string };
+  const [condominios, setCondominios] = useState<CondominioItem[]>([]);
   const [condominioAtivo, setCondominioAtivo] = useState<{ id: number; nome: string; slug: string; plano: string }>({
     id: 1,
     nome: "Condomínio Tailson Executive",
@@ -152,7 +191,11 @@ export default function PainelSindicoPage() {
   const [novoPredioNome, setNovoPredioNome] = useState("");
   const [novoPredioCnpj, setNovoPredioCnpj] = useState("");
   const [novoPredioEndereco, setNovoPredioEndereco] = useState("");
+  const [novoPredioUnidades, setNovoPredioUnidades] = useState<number | string>("150");
+  const [novoPredioPlano, setNovoPredioPlano] = useState("ENTERPRISE");
   const [criandoPredio, setCriandoPredio] = useState(false);
+  const [predioEmEdicao, setPredioEmEdicao] = useState<CondominioItem | null>(null);
+  const [excluindoPredioId, setExcluindoPredioId] = useState<number | null>(null);
 
   const carregarCondominios = () => {
     fetch("/api/condominios")
@@ -165,7 +208,10 @@ export default function PainelSindicoPage() {
           }
         }
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error("Erro ao carregar condomínios:", err);
+        setMensagemErro("Não foi possível carregar a lista de condomínios.");
+      });
   };
 
   // Assim que sabemos o condomínio EFETIVO (via /api/auth/me) e a lista completa,
@@ -198,6 +244,11 @@ export default function PainelSindicoPage() {
       if (res.ok) {
         const data = await res.json();
         setNotificacoesLog(data.notificacoes || []);
+        if (typeof data.total === "number") {
+          setNotificacoesTotal(data.total);
+        } else {
+          setNotificacoesTotal((data.notificacoes || []).length);
+        }
         setNotifMensagem("");
         setMensagemAviso(`Notificação enviada via ${notifCanal}!`);
       }
@@ -416,6 +467,13 @@ export default function PainelSindicoPage() {
           </button>
         </div>
       </div>
+
+      {mensagemErro && (
+        <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-2xl text-sm font-medium flex justify-between items-center">
+          <span>⚠️ {mensagemErro}</span>
+          <button onClick={() => setMensagemErro("")} className="font-bold">✕</button>
+        </div>
+      )}
 
       {mensagemAviso && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl text-sm font-medium flex justify-between items-center">
@@ -1052,7 +1110,7 @@ export default function PainelSindicoPage() {
                 <h4 className="font-bold text-sm text-[#0A2540] dark:text-white flex items-center justify-between">
                   <span>📜 Log de Envios (PostgreSQL)</span>
                   <span className="text-xs bg-purple-100 text-purple-800 font-extrabold px-2.5 py-0.5 rounded-full">
-                    {notificacoesLog.length} registros
+                    {notificacoesLog.length} de {notificacoesTotal || notificacoesLog.length} registros
                   </span>
                 </h4>
 
@@ -1092,6 +1150,26 @@ export default function PainelSindicoPage() {
                     </div>
                   ))}
                 </div>
+
+                {notificacoesTotal > notificacoesLog.length && (
+                  <div className="pt-2 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={carregarMaisNotificacoes}
+                      disabled={notificacoesCarregandoMais}
+                      className="cursor-pointer px-4 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-xl font-bold text-xs transition disabled:opacity-50 flex items-center gap-2 border border-purple-200 dark:border-purple-800/50"
+                    >
+                      {notificacoesCarregandoMais ? (
+                        <>
+                          <span className="animate-spin inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full"></span>
+                          Carregando...
+                        </>
+                      ) : (
+                        `➕ Carregar mais (${notificacoesTotal - notificacoesLog.length} restantes)`
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1132,6 +1210,7 @@ export default function PainelSindicoPage() {
   {condominios.map((c) => {
                     const isAtivo = (condominioIdReal ?? condominioAtivo.id) === c.id;
                     const temAcesso = meusCondominios.includes(c.id);
+                    const isEdicaoAtual = predioEmEdicao?.id === c.id;
                     return (
                       <div
                         key={c.id}
@@ -1156,29 +1235,84 @@ export default function PainelSindicoPage() {
                               setTrocandoCondominio(false);
                               return;
                             }
-                            // Recarrega a página inteira: todo dado exibido (ocorrências, reservas,
-                            // enquetes etc.) precisa ser buscado de novo com o novo condomínio ativo.
                             window.location.reload();
                           } catch (_err) {
                             setMensagemAviso("Erro ao trocar de condomínio.");
                             setTrocandoCondominio(false);
                           }
                         }}
-                        className={`p-4 rounded-2xl border transition-all ${
+                        className={`p-4 rounded-2xl border transition-all relative ${
                           temAcesso ? "cursor-pointer" : "cursor-not-allowed opacity-80"
                         } ${
                           isAtivo
                             ? "bg-amber-50 dark:bg-amber-950/40 border-amber-500 shadow-sm"
+                            : isEdicaoAtual
+                            ? "bg-blue-50/50 dark:bg-blue-950/30 border-blue-400"
                             : "bg-white dark:bg-[#111a2e] border-gray-200 dark:border-gray-800 hover:border-amber-400"
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-extrabold text-sm text-[#0A2540] dark:text-white">
+                          <span className="font-extrabold text-sm text-[#0A2540] dark:text-white flex items-center gap-1.5">
                             {c.nome}
                           </span>
-                          <span className="text-[10px] font-extrabold bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full">
-                            {c.plano}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] font-extrabold bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full">
+                              {c.plano}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPredioEmEdicao(c);
+                                setNovoPredioNome(c.nome);
+                                setNovoPredioCnpj(c.cnpj || "");
+                                setNovoPredioEndereco(c.endereco || "");
+                                setNovoPredioUnidades(c.total_unidades || 100);
+                                setNovoPredioPlano(c.plano || "ENTERPRISE");
+                              }}
+                              className="p-1 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-blue-100 text-blue-600 dark:text-blue-400 text-xs transition cursor-pointer"
+                              title="Editar Prédio"
+                            >
+                              ✏️
+                            </button>
+                            {c.id !== 1 && (
+                              <button
+                                type="button"
+                                disabled={excluindoPredioId === c.id}
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (!confirm(`Tem certeza que deseja excluir o prédio "${c.nome}"?`)) return;
+                                  setExcluindoPredioId(c.id);
+                                  try {
+                                    const res = await fetch(`/api/condominios/${c.id}`, {
+                                      method: "DELETE",
+                                    });
+                                    const data = await res.json();
+                                    if (res.ok) {
+                                      setCondominios(data.condominios || []);
+                                      if (predioEmEdicao?.id === c.id) {
+                                        setPredioEmEdicao(null);
+                                        setNovoPredioNome("");
+                                        setNovoPredioCnpj("");
+                                        setNovoPredioEndereco("");
+                                      }
+                                      setMensagemAviso(`Prédio "${c.nome}" excluído com sucesso!`);
+                                    } else {
+                                      setMensagemAviso(data.erro || "Erro ao excluir prédio.");
+                                    }
+                                  } catch (_err) {
+                                    setMensagemAviso("Falha de rede ao excluir prédio.");
+                                  } finally {
+                                    setExcluindoPredioId(null);
+                                  }
+                                }}
+                                className="p-1 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-red-100 text-red-600 dark:text-red-400 text-xs transition cursor-pointer disabled:opacity-50"
+                                title="Excluir Prédio"
+                              >
+                                {excluindoPredioId === c.id ? "⏳" : "🗑️"}
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                           {c.endereco || "Endereço não informado"} • CNPJ: {c.cnpj || "N/A"}
@@ -1201,42 +1335,77 @@ export default function PainelSindicoPage() {
                 </div>
               </div>
 
-              {/* Cadastrar Novo Prédio no SaaS */}
+              {/* Cadastrar ou Editar Prédio no SaaS */}
               <form
                 onSubmit={async (e) => {
                   e.preventDefault();
                   if (!novoPredioNome.trim()) return;
                   setCriandoPredio(true);
                   try {
-                    const res = await fetch("/api/condominios", {
-                      method: "POST",
+                    const url = predioEmEdicao
+                      ? `/api/condominios/${predioEmEdicao.id}`
+                      : "/api/condominios";
+                    const method = predioEmEdicao ? "PATCH" : "POST";
+
+                    const res = await fetch(url, {
+                      method,
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
                         nome: novoPredioNome,
                         cnpj: novoPredioCnpj,
                         endereco: novoPredioEndereco,
-                        total_unidades: 150,
-                        plano: "ENTERPRISE",
+                        total_unidades: Number(novoPredioUnidades) || 100,
+                        plano: novoPredioPlano,
                       }),
                     });
+                    const data = await res.json();
                     if (res.ok) {
-                      const data = await res.json();
                       setCondominios(data.condominios || []);
-                      setCondominioAtivo(data.condominio);
+                      if (data.condominio && (!condominioAtivo.id || predioEmEdicao?.id === condominioAtivo.id)) {
+                        setCondominioAtivo(data.condominio);
+                      }
+                      const msg = predioEmEdicao
+                        ? `Prédio "${data.condominio.nome}" atualizado com sucesso!`
+                        : `Novo prédio "${data.condominio.nome}" cadastrado com sucesso!`;
+                      setPredioEmEdicao(null);
                       setNovoPredioNome("");
                       setNovoPredioCnpj("");
                       setNovoPredioEndereco("");
-                      setMensagemAviso(`Novo prédio "${data.condominio.nome}" cadastrado com sucesso!`);
+                      setNovoPredioUnidades("150");
+                      setNovoPredioPlano("ENTERPRISE");
+                      setMensagemAviso(msg);
+                    } else {
+                      setMensagemAviso(data.erro || "Erro ao salvar prédio.");
                     }
+                  } catch (_err) {
+                    setMensagemAviso("Falha na comunicação ao salvar prédio.");
                   } finally {
                     setCriandoPredio(false);
                   }
                 }}
-                className="space-y-4 bg-gray-50 dark:bg-[#111a2e] p-5 rounded-2xl border border-gray-200/60 dark:border-gray-800"
+                className="space-y-4 bg-gray-50 dark:bg-[#111a2e] p-5 rounded-2xl border border-gray-200/60 dark:border-gray-800 relative"
               >
-                <h4 className="font-bold text-sm text-[#0A2540] dark:text-white">
-                  ➕ Cadastrar Novo Prédio / Condomínio (SaaS)
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-sm text-[#0A2540] dark:text-white flex items-center gap-1.5">
+                    {predioEmEdicao ? `✏️ Editar: ${predioEmEdicao.nome}` : "➕ Cadastrar Novo Prédio / Condomínio (SaaS)"}
+                  </h4>
+                  {predioEmEdicao && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPredioEmEdicao(null);
+                        setNovoPredioNome("");
+                        setNovoPredioCnpj("");
+                        setNovoPredioEndereco("");
+                        setNovoPredioUnidades("150");
+                        setNovoPredioPlano("ENTERPRISE");
+                      }}
+                      className="text-xs font-bold text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition cursor-pointer"
+                    >
+                      ✕ Cancelar Edição
+                    </button>
+                  )}
+                </div>
 
                 <div>
                   <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">
@@ -1251,36 +1420,76 @@ export default function PainelSindicoPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">
-                    CNPJ
-                  </label>
-                  <input
-                    value={novoPredioCnpj}
-                    onChange={(e) => setNovoPredioCnpj(e.target.value)}
-                    placeholder="00.000.000/0001-00"
-                    className="w-full p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#152033] text-xs"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">
+                      CNPJ
+                    </label>
+                    <input
+                      value={novoPredioCnpj}
+                      onChange={(e) => setNovoPredioCnpj(e.target.value)}
+                      placeholder="00.000.000/0001-00"
+                      className="w-full p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#152033] text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">
+                      Plano SaaS
+                    </label>
+                    <select
+                      value={novoPredioPlano}
+                      onChange={(e) => setNovoPredioPlano(e.target.value)}
+                      className="w-full p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#152033] text-xs font-semibold"
+                    >
+                      <option value="ENTERPRISE">ENTERPRISE</option>
+                      <option value="EXECUTIVO">EXECUTIVO</option>
+                      <option value="STANDARD">STANDARD</option>
+                    </select>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">
-                    Endereço Completo
-                  </label>
-                  <input
-                    value={novoPredioEndereco}
-                    onChange={(e) => setNovoPredioEndereco(e.target.value)}
-                    placeholder="Av. Paulista, 1000 - São Paulo/SP"
-                    className="w-full p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#152033] text-xs"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">
+                      Total de Unidades
+                    </label>
+                    <input
+                      type="number"
+                      value={novoPredioUnidades}
+                      onChange={(e) => setNovoPredioUnidades(e.target.value)}
+                      placeholder="Ex: 150"
+                      className="w-full p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#152033] text-xs"
+                    />
+                  </div>
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">
+                      Endereço Completo
+                    </label>
+                    <input
+                      value={novoPredioEndereco}
+                      onChange={(e) => setNovoPredioEndereco(e.target.value)}
+                      placeholder="Av. Paulista, 1000 - SP"
+                      className="w-full p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#152033] text-xs"
+                    />
+                  </div>
                 </div>
 
                 <button
                   type="submit"
                   disabled={criandoPredio}
-                  className="w-full bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold py-3 rounded-xl text-xs transition-all shadow-sm cursor-pointer"
+                  className={`w-full font-bold py-3 rounded-xl text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50 text-white ${
+                    predioEmEdicao
+                      ? "bg-blue-600 hover:bg-blue-700"
+                      : "bg-amber-600 hover:bg-amber-700"
+                  }`}
                 >
-                  {criandoPredio ? "Cadastrando..." : "⚡ Cadastrar Prédio no Banco de Dados"}
+                  {criandoPredio
+                    ? predioEmEdicao
+                      ? "Salvando..."
+                      : "Cadastrando..."
+                    : predioEmEdicao
+                    ? "💾 Salvar Alterações"
+                    : "⚡ Cadastrar Prédio no Banco de Dados"}
                 </button>
               </form>
             </div>

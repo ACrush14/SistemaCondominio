@@ -36,6 +36,8 @@ export default function OcorrenciasPage() {
   const [modalNova, setModalNova] = useState(false);
   const [novoTitulo, setNovoTitulo] = useState("");
   const [novaDescricao, setNovaDescricao] = useState("");
+  const [mensagemErro, setMensagemErro] = useState("");
+  const [mensagemSucesso, setMensagemSucesso] = useState("");
 
   useEffect(() => {
     fetch("/api/condominio/ocorrencias")
@@ -45,7 +47,10 @@ export default function OcorrenciasPage() {
           setOcorrencias(data);
         }
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error("Erro ao carregar ocorrências:", err);
+        setMensagemErro("Falha ao carregar lista de ocorrências.");
+      });
   }, []);
 
   const handleCriarOcorrencia = async (e: React.FormEvent) => {
@@ -60,12 +65,20 @@ export default function OcorrenciasPage() {
           categoria: "MANUTENÇÃO",
         }),
       });
+      if (!res.ok) {
+        setMensagemErro("Erro ao registrar ocorrência.");
+        return;
+      }
       const nova = await res.json();
       setOcorrencias([nova, ...ocorrencias]);
       setModalNova(false);
       setNovoTitulo("");
       setNovaDescricao("");
+      setMensagemSucesso("Ocorrência registrada com sucesso!");
+      setTimeout(() => setMensagemSucesso(""), 4000);
     } catch (err) {
+      console.error("Erro ao criar ocorrência:", err);
+      setMensagemErro("Falha de conexão ao cadastrar ocorrência.");
       setModalNova(false);
     }
   };
@@ -73,6 +86,18 @@ export default function OcorrenciasPage() {
   return (
     <div className="p-4 sm:p-8 bg-neutral-light min-h-screen text-neutral-dark flex justify-center">
       <div className="w-full max-w-lg bg-white rounded-3xl shadow-sm border border-gray-100 p-6 space-y-6">
+        {mensagemErro && (
+          <div className="bg-red-50 border border-red-200 text-red-800 p-3 rounded-xl text-xs font-bold flex justify-between items-center">
+            <span>⚠️ {mensagemErro}</span>
+            <button onClick={() => setMensagemErro("")} className="cursor-pointer">✕</button>
+          </div>
+        )}
+        {mensagemSucesso && (
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-xl text-xs font-bold flex justify-between items-center">
+            <span>✅ {mensagemSucesso}</span>
+            <button onClick={() => setMensagemSucesso("")} className="cursor-pointer">✕</button>
+          </div>
+        )}
         {/* Top Header */}
         <div className="flex items-center justify-between border-b border-gray-100 pb-4">
           <div className="flex items-center gap-2">

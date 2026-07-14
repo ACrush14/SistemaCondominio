@@ -82,9 +82,9 @@ Lista numerada pra você analisar item a item e decidir o que vale a pena. Os it
 11. E-mail via Resend usa o domínio sandbox `onboarding@resend.dev` — só entrega de verdade pra caixa do dono da conta Resend, não pra moradores reais. Precisa verificar um domínio próprio pra funcionar em produção de verdade
 
 **Multi-tenant / dados:**
-12. Sem UI para editar/excluir condomínios — só criar e listar
-13. Sem paginação em nenhuma lista (`/api/usuarios`, ocorrências, notificações etc.)
-14. Notificações limitadas a 30 registros fixos, sem "carregar mais"
+12. ~~Sem UI para editar/excluir condomínios — só criar e listar~~ — RESOLVIDO (2026-07-14): Implementadas as rotas `PATCH /api/condominios/[id]` e `DELETE /api/condominios/[id]` integradas ao helper de banco (`condominiosDb.ts`). Adicionada proteção de integridade que impede a exclusão do condomínio principal (`id: 1` — Tailson Executive) e trata erros de violação de chave estrangeira com mensagem clara (`status: 400`). Na interface (`page.tsx`), o modal de arquitetura SaaS agora possui botões ✏️ (Editar) e 🗑️ (Excluir) em cada card do catálogo, permitindo alterar inline o Nome, CNPJ, Endereço, Plano (`ENTERPRISE`, `EXECUTIVO`, `STANDARD`) e Total de Unidades, bem como remover prédios não utilizados. Testado contra o Postgres (Neon) via `npx tsx` e validado no build (`npm run build`).
+13. Sem paginação nas demais listas (`/api/usuarios`, ocorrências, reservas etc. — notificações já resolvida)
+14. ~~Notificações limitadas a 30 registros fixos, sem "carregar mais"~~ — RESOLVIDO (2026-07-14): Adicionado suporte completo a paginação em `GET /api/condominio/notificacoes` (parâmetros `offset`, `pagina`/`page` e `limite`) retornando `{ notificacoes, total, offset, limite, paginas }`. Na UI do síndico (`page.tsx`), a Central de Notificações exibe o contador `X de Y registros` e apresenta o botão interativo `➕ Carregar mais (N restantes)` enquanto houver registros pendentes. Validado com testes de API via `npx tsx` e `npm run build`.
 15. Todo delete é permanente (hard delete) — nenhuma tabela tem soft-delete ou trilha de auditoria de quem apagou o quê
 16. Reservas não checam conflito de horário sobreposto no banco (só a regra de "até 30 dias de antecedência" é validada)
 
@@ -100,11 +100,11 @@ Lista numerada pra você analisar item a item e decidir o que vale a pena. Os it
 21. Sem testes automatizados (nenhum teste unitário/integração, tudo validado manualmente nas sessões)
 22. Sem sistema formal de migração de banco (tipo Prisma Migrate) — todo `ALTER TABLE` rodado foi um comando `psql` avulso, documentado só em prosa no `CLAUDE.md`
 23. Sem monitoramento/alerta de erro em produção (tipo Sentry)
-24. Aviso de depreciação do `pg`/`sslmode` ainda não tratado
+24. ~~Aviso de depreciação do `pg`/`sslmode` ainda não tratado~~ — RESOLVIDO (2026-07-14): Criado helper `obterConnectionString()` em `frontend/src/lib/store/db.ts` que adiciona `uselibpqcompat=true` automaticamente à `connectionString` (se ainda não presente no `DATABASE_URL`) sem criar fallback inseguro (`process.env.DATABASE_URL` obrigatório ou erro explícito). Testado via `npx tsx` efetuando consulta (`SELECT 1`) sem emitir warnings de segurança no Node, e validado com `npx tsc --noEmit` e `npm run build`.
 25. `backend/` (Express) 100% órfão — nunca é buildado, mas ainda ocupa espaço no repositório
-26. `vercel.json` duplicado (na raiz e dentro de `frontend/`) — funciona, mas confunde se alguém mexer no errado
+26. ~~`vercel.json` duplicado (na raiz e dentro de `frontend/`)~~ — RESOLVIDO (2026-07-14): Confirmado via `.vercel/project.json` que a Vercel usa `rootDirectory: "frontend"` (portanto lê `frontend/vercel.json`). O `vercel.json` da raiz do repositório foi removido (`git rm vercel.json`) e o script de build do `frontend/package.json` foi simplificado para `"next build"`, validado via `npx tsc --noEmit` e `npm run build` no `frontend/` com sucesso.
 
 **UX / robustez de frontend:**
-27. Vários `fetch` no frontend com `.catch(() => {})` silencioso — falha de API não avisa o usuário, só fica sem dado
+27. ~~Vários `fetch` no frontend com `.catch(() => {})` silencioso — falha de API não avisa o usuário, só fica sem dado~~ — RESOLVIDO (2026-07-14): Substituídos todos os `.catch(() => {})` e blocos `catch (_err) { // ignora }` nos `fetch` das páginas do dashboard (`page.tsx`, `area-morador/page.tsx`, `ocorrencias/page.tsx`, `portaria/page.tsx`) por tratamentos explícitos que registram o erro em `console.error()` e exibem avisos visuais/toasts com estados dedicados (`mensagemErro` e `mensagemSucesso`) na interface do usuário. Testado e validado com sucesso via `npx tsc --noEmit` (0 erros) e `npm run build` (~5.1s) sem quebrar nenhuma página ou fluxo.
 28. Painel do síndico faz polling do botão de pânico a cada 5s o tempo todo, mesmo em segundo plano — desperdício de requisições
 29. Responsividade mobile completa e acessibilidade (contraste, navegação por teclado, `aria-label`) não verificadas em nenhuma tela

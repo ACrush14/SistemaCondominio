@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { pool } from "../../../../lib/store/db";
-import { listarNotificacoes, garantirTabelaNotificacoes } from "../../../../lib/store/notificacoesDb";
+import { listarNotificacoes, contarNotificacoes, garantirTabelaNotificacoes } from "../../../../lib/store/notificacoesDb";
 import { obterCondominioId } from "../../../../lib/tenant";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -14,8 +14,30 @@ function extrairEmail(contato: string): string | null {
 export async function GET(req: Request) {
   try {
     const condominioId = obterCondominioId(req);
-    const log = await listarNotificacoes(30, condominioId);
-    return NextResponse.json(log);
+    const url = new URL(req.url);
+    const limiteParam = parseInt(url.searchParams.get("limite") || "10", 10);
+    const limite = isNaN(limiteParam) || limiteParam <= 0 ? 10 : Math.min(limiteParam, 100);
+
+    let offset = 0;
+    if (url.searchParams.has("offset")) {
+      const offsetParam = parseInt(url.searchParams.get("offset") || "0", 10);
+      offset = isNaN(offsetParam) || offsetParam < 0 ? 0 : offsetParam;
+    } else if (url.searchParams.has("pagina") || url.searchParams.has("page")) {
+      const paginaParam = parseInt(url.searchParams.get("pagina") || url.searchParams.get("page") || "1", 10);
+      const pagina = isNaN(paginaParam) || paginaParam < 1 ? 1 : paginaParam;
+      offset = (pagina - 1) * limite;
+    }
+
+    const log = await listarNotificacoes(limite, condominioId, offset);
+    const total = await contarNotificacoes(condominioId);
+
+    return NextResponse.json({
+      notificacoes: log,
+      total,
+      offset,
+      limite,
+      paginas: Math.ceil(total / limite),
+    });
   } catch (erro: unknown) {
     console.error("Erro ao listar notificações:", erro);
     const msg = erro instanceof Error ? erro.message : String(erro);
@@ -81,7 +103,8 @@ export async function POST(req: Request) {
       [destinatario_nome, unidade, canal, contato, assunto, mensagem, status, tipo_evento, condominioId]
     );
 
-    const logAtualizado = await listarNotificacoes(30, condominioId);
+    const logAtualizado = await listarNotificacoes(10, condominioId, 0);
+    const total = await contarNotificacoes(condominioId);
     return NextResponse.json(
       {
         sucesso: status === "ENVIADO",
@@ -91,6 +114,7 @@ export async function POST(req: Request) {
             : `Falha ao notificar via ${canal}: ${detalhe}`,
         id_registro: insert.rows[0].id,
         notificacoes: logAtualizado,
+        total,
       },
       { status: 201 }
     );

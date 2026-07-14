@@ -52,7 +52,7 @@ export async function garantirTabelaNotificacoes() {
   tabelaVerificada = true;
 }
 
-export async function listarNotificacoes(limite = 30, condominioId = 1) {
+export async function listarNotificacoes(limite = 10, condominioId = 1, offset = 0) {
   await garantirTabelaNotificacoes();
   const res = await pool.query(
     `SELECT
@@ -69,8 +69,17 @@ export async function listarNotificacoes(limite = 30, condominioId = 1) {
     FROM notificacoes_enviadas
     WHERE condominio_id = $1
     ORDER BY id DESC
-    LIMIT $2`,
-    [condominioId, limite]
+    LIMIT $2 OFFSET $3`,
+    [condominioId, limite, offset]
   );
   return res.rows;
+}
+
+export async function contarNotificacoes(condominioId = 1): Promise<number> {
+  await garantirTabelaNotificacoes();
+  const res = await pool.query(
+    "SELECT COUNT(*) as total FROM notificacoes_enviadas WHERE condominio_id = $1",
+    [condominioId]
+  );
+  return parseInt(res.rows[0].total, 10);
 }

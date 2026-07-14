@@ -125,9 +125,9 @@ O `backend/` (Express) também pode rodar (`cd backend && npm run dev`, porta 33
 
 - URL: **https://sistemacondominio-nine.vercel.app**
 - Projeto Vercel: `sistemacondominio`, na conta `acrush14` / escopo `andersoncrushlink-7788s-projects`. Deploy automático a cada push em `main` (integração com GitHub).
-- `frontend/` está "linkado" ao projeto via Vercel CLI (`vercel link`), o que criou `frontend/.vercel/` (gitignored automaticamente pelo próprio CLI).
+- `frontend/` está "linkado" ao projeto via Vercel CLI (`vercel link`), o que criou `frontend/.vercel/` (gitignored automaticamente pelo próprio CLI). Confirmado via `npx vercel pull --yes` (`.vercel/project.json`) que o `rootDirectory` do projeto na Vercel está configurado como `"frontend"`. Por causa disso, o `vercel.json` da raiz do repositório foi removido (`git rm vercel.json`), mantendo exclusivamente `frontend/vercel.json` (`outputDirectory: ".next"`), eliminando a duplicidade. O script de build do `frontend/package.json` foi simplificado para `"next build"` e validado localmente com `npx tsc --noEmit` e `npm run build` no `frontend/`.
 - Variáveis de ambiente configuradas via `vercel env add` (não pelo dashboard): `DATABASE_URL`, `JWT_SECRET`, `RESEND_API_KEY`, `GEMINI_API_KEY` — todas no ambiente **Production**, e as mesmas 4 também no ambiente **Preview** (vinculadas à branch `preview`, ver seção própria abaixo). `vercel env ls` pra conferir. O CLI já está autenticado nessa máquina.
-- Aviso de depreciação nos logs do `pg`/`pg-connection-string` sobre `sslmode` (`prefer`/`require`/`verify-ca` virando aliases): não quebra nada hoje, mas uma versão futura da lib vai exigir `sslmode=verify-full` explícito ou `uselibpqcompat=true`. Não tratado ainda.
+- Aviso de depreciação nos logs do `pg`/`pg-connection-string` sobre `sslmode` (`prefer`/`require`/`verify-ca` virando aliases): **RESOLVIDO (2026-07-14)** via helper `obterConnectionString()` em `frontend/src/lib/store/db.ts`, que verifica e anexa `uselibpqcompat=true` automaticamente à URL de conexão (`process.env.DATABASE_URL`), garantindo compatibilidade sem emitir avisos de depreciação e preservando a verificação de erro imediato caso a variável falte (`throw new Error(...)` / sem fallback). Validado com `npx tsx` efetuando consulta ao pool e `npm run build`.
 
 ### Ambiente Preview da Vercel — resolvido (2026-07-13)
 
@@ -409,3 +409,89 @@ Depois de tentar testar o QR Code com câmera física real (celular real, site p
 ### O que ainda não foi testado
 
 - Câmera física real continua sem confirmação de ponta a ponta — ficou mais difícil de validar nesta sessão (ver acima) e não é mais o caminho principal, mas o código dela não foi removido, só passou a ser secundário. Se for retomar esse teste depois, lembrar de clicar "Start Scanning" após conceder a permissão de câmera (não inicia sozinho), e evitar escanear uma foto/print — testar com o QR exibido ao vivo na tela de outro aparelho.
+
+---
+
+## Paginação em Notificações: offset/página e botão "Carregar mais" (2026-07-14)
+
+Implementado suporte completo a paginação na API de notificações e na Central de Notificações do painel do síndico.
+
+### O que mudou
+
+1. **`frontend/src/lib/store/notificacoesDb.ts`**:
+   - `listarNotificacoes(limite = 10, condominioId = 1, offset = 0)` agora aceita o parâmetro `offset` (`LIMIT $2 OFFSET $3`), preservando o filtro por `condominio_id`.
+   - Criada a função `contarNotificacoes(condominioId = 1)` que retorna o total exato de notificações daquele condomínio na tabela `notificacoes_enviadas`.
+2. **`frontend/src/app/api/condominio/notificacoes/route.ts`**:
+   - `GET /api/condominio/notificacoes`: agora analisa parâmetros de busca (`limite`, `offset` ou `pagina`/`page`). Por padrão retorna `limite: 10`, `offset: 0`. O retorno mudou de um array puro para o objeto estruturado `{ notificacoes: [...], total, offset, limite, paginas }`.
+   - `POST /api/condominio/notificacoes`: agora também retorna a contagem `total` atualizada junto às `notificacoes`.
+3. **`frontend/src/app/(dashboard)/page.tsx`** (Painel do Síndico):
+   - Adicionados os estados `notificacoesTotal` e `notificacoesCarregandoMais`.
+   - `carregarNotificacoes(offset = 0, append = false)`: se `append` for verdadeiro, concatena as novas notificações no histórico (`[...prev, ...data.notificacoes]`); caso contrário, substitui a lista. Compatível tanto com o novo formato `{ notificacoes, total }` quanto com retornos em array legados.
+   - Criada a função `carregarMaisNotificacoes()` acionada pelo botão.
+   - UI do modal "📢 Central de Notificações": o cabeçalho agora exibe `X de Y registros`. Se `notificacoesTotal > notificacoesLog.length`, o botão `➕ Carregar mais (N restantes)` é renderizado com indicação visual de carregamento (`Carregando...`).
+
+### Testado
+
+- `npx tsx` efetuando chamadas simuladas contra o Route Handler `GET`:
+  - `?limite=2&offset=0` → retornou `total: 2`, `count: 2`, `firstId: 2`.
+  - `?limite=2&offset=2` → retornou `offset: 2`, `count: 0`.
+  - `?pagina=2&limite=1` → retornou o segundo item (`id: 1`) corretamente com `offset: 1`.
+- `npx tsc --noEmit` limpo.
+- `npm run build` no `frontend/` limpo e verificado.
+
+---
+
+## Substituição de `.catch(() => {})` Silenciosos no Frontend (2026-07-14)
+
+Substituídos todos os tratamentos de erro silenciosos em requisições de API no frontend por registro de logs no console e avisos visuais explícitos para o usuário na interface.
+
+### O que mudou
+
+1. **`frontend/src/app/(dashboard)/page.tsx`** (Painel do Síndico):
+   - Adicionado o estado `mensagemErro` e banner visual de alerta (`⚠️ {mensagemErro}`) renderizado logo acima dos KPIs.
+   - Substituído `.catch(() => {})` em `carregarEnquetes()`, `carregarPanico()`, `carregarNotificacoes()`, `carregarCondominios()` e em todas as requisições iniciais do `useEffect()` por `console.error(...)` e `setMensagemErro(...)`.
+2. **`frontend/src/app/(dashboard)/area-morador/page.tsx`** (Área do Morador):
+   - Adicionados os estados e banners visuais dedicados `mensagemErro` e `mensagemSucesso`.
+   - Substituídos os blocos `catch (_err) { // ignora }` e `.catch(() => {})` em `buscarBoletos()`, `copiarTexto()`, `simularPagamento()`, `encomendas` e `enquetes` por logs claros no console e feedback na UI (ex: mensagens para falhas de conexão, ou confirmação visual ao copiar chaves PIX/barras ou processar pagamento).
+3. **`frontend/src/app/(dashboard)/ocorrencias/page.tsx`** (Livro de Ocorrências):
+   - Adicionados estados e banners visuais `mensagemErro` e `mensagemSucesso`.
+   - Substituído `.catch(() => {})` na busca inicial e o fechamento silencioso do modal `catch (err) { setModalNova(false); }` em `handleCriarOcorrencia()` por validação de status (`if (!res.ok)`), `console.error()` e `setMensagemErro(...)`.
+4. **`frontend/src/app/(dashboard)/portaria/page.tsx`** (Portaria):
+   - Adicionados estados e banners de feedback `mensagemErro` e `mensagemSucesso`.
+   - Substituídos os blocos `catch (_err) { // ignora }` ou `try` sem `catch` nas funções `buscarAlertasPanico()`, `buscarLivroTurno()`, `registrarNovoTurno()`, `marcarComoCiente()`, `buscarVisitantes()`, `registrarEntrada()`, `acionarBotaoPanico()` e `resolverAlertaPanico()`. A UI agora informa claramente o porteiro caso o salvamento de um plantão ou liberação de visitante falhe por problema de rede ou API.
+
+### Testado
+
+- Auditoria de busca estática no código (`grep_search`) confirmando 0 instâncias de `.catch(() => {})` ou `// ignora` remanescentes em requisições de API nas páginas do dashboard.
+- Verificação de tipagem via `npx tsc --noEmit` limpa (0 erros).
+- Build de produção via `npm run build` no `frontend/` executado com sucesso e verificado (~5.1s).
+
+---
+
+## Edição/Exclusão de Condomínios SaaS (`PATCH` / `DELETE`) (2026-07-14)
+
+Criada gestão completa de atualização e remoção de condomínios/prédios na base de dados (`condominios`) com rotas de API e interface de administração para o síndico/usuários autorizados.
+
+### O que mudou
+
+1. **`frontend/src/lib/store/condominiosDb.ts`**:
+   - Adicionada a função `atualizarCondominio(id, dados)`: realiza `UPDATE` na tabela `condominios` para os campos `nome`, `slug`, `cnpj`, `endereco`, `total_unidades` e `plano`.
+   - Adicionada a função `excluirCondominio(id)`: remove o condomínio pelo `id`. Possui trava de segurança explícita que bloqueia a remoção do `id: 1` (`"Não é permitido excluir o condomínio principal/padrão do sistema (Tailson Executive)."`).
+2. **`frontend/src/app/api/condominios/[id]/route.ts`** (Nova Rota):
+   - `PATCH /api/condominios/[id]`: valida o `id` e atualiza os dados no banco, retornando o condomínio modificado e a lista completa atualizada.
+   - `DELETE /api/condominios/[id]`: remove o condomínio e retorna a lista atualizada. Captura erros de violação de chave estrangeira (`23503`) no Postgres caso existam moradores ou históricos atrelados a esse condomínio, respondendo com HTTP `400` e mensagem amigável explicativa.
+3. **`frontend/src/app/(dashboard)/page.tsx`** (Modal SaaS Multi-Tenant):
+   - Cada card na lista de prédios agora apresenta botões de ação:
+     - ✏️ **Editar**: carrega os dados do prédio no formulário lateral (modificando o título para "✏️ Editar: [Nome]") e permite editar `nome`, `cnpj`, `plano` (`ENTERPRISE`, `EXECUTIVO`, `STANDARD`), `total_unidades` e `endereco`.
+     - 🗑️ **Excluir** (invisível para o `id: 1`): pede confirmação e dispara o `DELETE /api/condominios/[id]`. Exibe loading (`⏳`) durante a deleção.
+   - Suporte completo a cancelamento da edição (`✕ Cancelar Edição`) para retornar ao modo de criação de novo prédio.
+
+### Testado
+
+- Testado diretamente contra o Postgres (Neon) via script `npx tsx`:
+  - `INSERT` de um condomínio de teste (`ID: 5`).
+  - `atualizarCondominio(5, { nome: 'Teste Temp Editado', total_unidades: 75, plano: 'EXECUTIVO' })` confirmando persistência no banco.
+  - `excluirCondominio(5)` retornando sucesso.
+  - `excluirCondominio(1)` gerando exceção protegendo o prédio principal (`id: 1`).
+- Verificação do compilador TypeScript (`npx tsc --noEmit`) 100% limpa (0 erros).
+- Build estático e de produção (`npm run build`) concluído com sucesso e sem erros (`5.0s`).

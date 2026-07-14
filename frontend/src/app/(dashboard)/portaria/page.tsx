@@ -58,6 +58,8 @@ export default function PortariaPage() {
   } | null>(null);
   const [codigoDigitado, setCodigoDigitado] = useState("");
   const [validandoCodigoDigitado, setValidandoCodigoDigitado] = useState(false);
+  const [mensagemErro, setMensagemErro] = useState("");
+  const [mensagemSucesso, setMensagemSucesso] = useState("");
 
   // Estado Livro de Turno
   const [registrosTurno, setRegistrosTurno] = useState<RegistroTurno[]>([]);
@@ -77,8 +79,8 @@ export default function PortariaPage() {
         const dados = await res.json();
         setAlertasPanico(dados.alertas || []);
       }
-    } catch (_err) {
-      // ignora
+    } catch (err) {
+      console.error("Erro ao carregar alertas de pânico:", err);
     }
   }, []);
 
@@ -90,8 +92,8 @@ export default function PortariaPage() {
         const dados = await res.json();
         setRegistrosTurno(dados);
       }
-    } catch (_err) {
-      // ignora
+    } catch (err) {
+      console.error("Erro ao carregar livro de turno:", err);
     }
   }, []);
 
@@ -124,7 +126,14 @@ export default function PortariaPage() {
         setModalPanicoAberto(false);
         setObsPanico("");
         setAbaAtiva("PANICO");
+        setMensagemSucesso("🚨 Alerta de pânico disparado com sucesso!");
+        setTimeout(() => setMensagemSucesso(""), 4000);
+      } else {
+        setMensagemErro("Falha ao disparar alerta de pânico.");
       }
+    } catch (err) {
+      console.error("Erro ao disparar pânico:", err);
+      setMensagemErro("Erro de conexão ao disparar pânico!");
     } finally {
       setAcionandoPanico(false);
     }
@@ -140,9 +149,14 @@ export default function PortariaPage() {
       if (res.ok) {
         const dados = await res.json();
         setAlertasPanico(dados.alertas || []);
+        setMensagemSucesso("Alerta resolvido e registrado no histórico!");
+        setTimeout(() => setMensagemSucesso(""), 4000);
+      } else {
+        setMensagemErro("Erro ao resolver o alerta de pânico.");
       }
-    } catch (_err) {
-      // ignora
+    } catch (err) {
+      console.error("Erro ao resolver alerta de pânico:", err);
+      setMensagemErro("Falha de rede ao tentar resolver pânico.");
     }
   };
 
@@ -167,7 +181,14 @@ export default function PortariaPage() {
         setRegistrosTurno(dados);
         setModalTurnoAberto(false);
         setNovaDescricao("");
+        setMensagemSucesso("Registro de turno salvo com sucesso!");
+        setTimeout(() => setMensagemSucesso(""), 4000);
+      } else {
+        setMensagemErro("Não foi possível salvar o registro de turno.");
       }
+    } catch (err) {
+      console.error("Erro ao salvar turno:", err);
+      setMensagemErro("Falha de rede ao registrar turno.");
     } finally {
       setSalvandoTurno(false);
     }
@@ -183,9 +204,12 @@ export default function PortariaPage() {
       if (res.ok) {
         const dados = await res.json();
         setRegistrosTurno(dados);
+      } else {
+        setMensagemErro("Erro ao marcar ciente no registro.");
       }
-    } catch (_err) {
-      // ignora
+    } catch (err) {
+      console.error("Erro ao marcar ciente:", err);
+      setMensagemErro("Falha na comunicação ao marcar como ciente.");
     }
   };
 
@@ -257,8 +281,8 @@ export default function PortariaPage() {
       const res = await fetch("/api/visitantes");
       const dados = await res.json();
       setVisitantes(dados);
-    } catch (_err) {
-      // ignora
+    } catch (err) {
+      console.error("Erro ao carregar lista de visitantes:", err);
     }
   }, []);
 
@@ -270,18 +294,30 @@ export default function PortariaPage() {
 
   const registrarEntrada = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch("/api/visitantes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        nome,
-        documento,
-        placa_veiculo: placa,
-        unidade_destino: unidade,
-      }),
-    });
-    setModalAberto(false);
-    buscarVisitantes();
+    try {
+      const res = await fetch("/api/visitantes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome,
+          documento,
+          placa_veiculo: placa,
+          unidade_destino: unidade,
+        }),
+      });
+      if (!res.ok) {
+        setMensagemErro("Erro ao registrar entrada de visitante.");
+        return;
+      }
+      setModalAberto(false);
+      buscarVisitantes();
+      setMensagemSucesso("Entrada registrada com sucesso!");
+      setTimeout(() => setMensagemSucesso(""), 4000);
+    } catch (err) {
+      console.error("Erro no registro de entrada:", err);
+      setMensagemErro("Falha de conexão ao registrar visitante.");
+      setModalAberto(false);
+    }
   };
 
   const registrosFiltrados = registrosTurno.filter((r) =>
@@ -292,6 +328,19 @@ export default function PortariaPage() {
 
   return (
     <div className="p-8 space-y-6 max-w-6xl mx-auto">
+      {mensagemErro && (
+        <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-2xl text-sm font-medium flex justify-between items-center shadow-sm">
+          <span>⚠️ {mensagemErro}</span>
+          <button onClick={() => setMensagemErro("")} className="font-bold cursor-pointer">✕</button>
+        </div>
+      )}
+      {mensagemSucesso && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl text-sm font-medium flex justify-between items-center shadow-sm">
+          <span>✅ {mensagemSucesso}</span>
+          <button onClick={() => setMensagemSucesso("")} className="font-bold cursor-pointer">✕</button>
+        </div>
+      )}
+
       {/* BANNER DE ALERTA ATIVO DE PÂNICO */}
       {alertasAtivos.length > 0 && (
         <div className="bg-red-600 text-white p-4 rounded-3xl shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-pulse border-2 border-red-300">
