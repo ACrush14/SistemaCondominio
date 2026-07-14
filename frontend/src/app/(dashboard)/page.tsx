@@ -116,8 +116,42 @@ export default function PainelSindicoPage() {
     carregarEnquetes();
     carregarPanico();
     carregarCondominios();
-    const intPanico = setInterval(carregarPanico, 5000);
-    return () => clearInterval(intPanico);
+
+    let intPanico: NodeJS.Timeout | null = null;
+
+    const iniciarIntervalo = () => {
+      if (!intPanico && !document.hidden) {
+        intPanico = setInterval(() => {
+          if (!document.hidden) {
+            carregarPanico();
+          }
+        }, 5000);
+      }
+    };
+
+    const pararIntervalo = () => {
+      if (intPanico) {
+        clearInterval(intPanico);
+        intPanico = null;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        pararIntervalo();
+      } else {
+        carregarPanico();
+        iniciarIntervalo();
+      }
+    };
+
+    iniciarIntervalo();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      pararIntervalo();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
 
   const [perguntaIa, setPerguntaIa] = useState("");

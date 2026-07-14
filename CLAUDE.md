@@ -657,6 +657,29 @@ Removido do repositório todo o diretório legado `backend/` (Express na porta 3
 - Verificação de tipagem via `npx tsc --noEmit`: concluída com 0 erros.
 - Build de produção via `npm run build` na pasta `frontend/`: concluído com sucesso e compilação limpa de todas as 34 rotas da aplicação.
 
+---
+
+## Otimização de Performance no Front: Polling Inteligente com `visibilitychange` (2026-07-14)
+
+Refatorados todos os loops contínuos de polling (`setInterval` a cada 5 segundos) no painel do Síndico e na Portaria, eliminando requisições e processamento no banco quando a aba do navegador está minimizada ou em segundo plano.
+
+### O que mudou
+
+1. **Painel do Síndico (`frontend/src/app/(dashboard)/page.tsx`)**:
+   - Refatorado o `useEffect` que executa `carregarPanico()`. Em vez de um `setInterval` ininterrupto, implementado controle baseado em `document.hidden` e listener do evento nativo `visibilitychange`.
+   - Quando `document.hidden === true` (aba em background), o intervalo é imediatamente pausado (`clearInterval`).
+   - Quando o usuário retorna para a aba (`document.hidden === false`), `carregarPanico()` é disparada de imediato (garantindo dados atualizados sem esperar 5 segundos) e o temporizador é retomado.
+2. **Painel da Portaria (`frontend/src/app/(dashboard)/portaria/page.tsx`)**:
+   - Aplicada a mesma otimização com `visibilitychange` nos dois loops de polling de 5 segundos: o monitoramento de turno/pânico (`buscarLivroTurno` + `buscarAlertasPanico`) e o monitoramento em tempo real de visitantes (`buscarVisitantes`).
+   - Garantida a limpeza adequada de todos os listeners e timers no retorno dos `useEffect`s (`document.removeEventListener("visibilitychange", ...)` + `clearInterval`) para evitar vazamento de memória.
+
+### Testado
+
+- Executado `npm run test` em `frontend/`: 14/14 testes aprovados (`Test Files 2 passed, Tests 14 passed`).
+- Verificação de tipagem (`npx tsc --noEmit`) limpa (`0 errors`).
+- Build de produção (`npm run build` dentro de `frontend/`) executado com sucesso e sem avisos de compilação.
+
+
 
 
 

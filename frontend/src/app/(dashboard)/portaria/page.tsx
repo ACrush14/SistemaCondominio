@@ -100,11 +100,44 @@ export default function PortariaPage() {
   useEffect(() => {
     buscarLivroTurno();
     buscarAlertasPanico();
-    const int = setInterval(() => {
-      buscarLivroTurno();
-      buscarAlertasPanico();
-    }, 5000);
-    return () => clearInterval(int);
+
+    let int: NodeJS.Timeout | null = null;
+
+    const iniciarIntervalo = () => {
+      if (!int && !document.hidden) {
+        int = setInterval(() => {
+          if (!document.hidden) {
+            buscarLivroTurno();
+            buscarAlertasPanico();
+          }
+        }, 5000);
+      }
+    };
+
+    const pararIntervalo = () => {
+      if (int) {
+        clearInterval(int);
+        int = null;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        pararIntervalo();
+      } else {
+        buscarLivroTurno();
+        buscarAlertasPanico();
+        iniciarIntervalo();
+      }
+    };
+
+    iniciarIntervalo();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      pararIntervalo();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [buscarLivroTurno, buscarAlertasPanico]);
 
   const acionarBotaoPanico = async (tipoEscolhido?: string) => {
@@ -288,8 +321,42 @@ export default function PortariaPage() {
 
   useEffect(() => {
     buscarVisitantes();
-    const intervalo = setInterval(buscarVisitantes, 5000);
-    return () => clearInterval(intervalo);
+
+    let intervalo: NodeJS.Timeout | null = null;
+
+    const iniciarIntervalo = () => {
+      if (!intervalo && !document.hidden) {
+        intervalo = setInterval(() => {
+          if (!document.hidden) {
+            buscarVisitantes();
+          }
+        }, 5000);
+      }
+    };
+
+    const pararIntervalo = () => {
+      if (intervalo) {
+        clearInterval(intervalo);
+        intervalo = null;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        pararIntervalo();
+      } else {
+        buscarVisitantes();
+        iniciarIntervalo();
+      }
+    };
+
+    iniciarIntervalo();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      pararIntervalo();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [buscarVisitantes]);
 
   const registrarEntrada = async (e: React.FormEvent) => {
