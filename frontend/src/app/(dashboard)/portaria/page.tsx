@@ -398,13 +398,13 @@ export default function PortariaPage() {
       {mensagemErro && (
         <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-2xl text-sm font-medium flex justify-between items-center shadow-sm">
           <span>⚠️ {mensagemErro}</span>
-          <button onClick={() => setMensagemErro("")} className="font-bold cursor-pointer">✕</button>
+          <button onClick={() => setMensagemErro("")} aria-label="Fechar alerta de erro" className="font-bold cursor-pointer">✕</button>
         </div>
       )}
       {mensagemSucesso && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl text-sm font-medium flex justify-between items-center shadow-sm">
           <span>✅ {mensagemSucesso}</span>
-          <button onClick={() => setMensagemSucesso("")} className="font-bold cursor-pointer">✕</button>
+          <button onClick={() => setMensagemSucesso("")} aria-label="Fechar alerta de sucesso" className="font-bold cursor-pointer">✕</button>
         </div>
       )}
 
@@ -848,28 +848,30 @@ export default function PortariaPage() {
               </button>
             </div>
 
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-gray-100 text-xs text-gray-400 uppercase">
-                  <th className="py-3 px-2">Nome</th>
-                  <th className="py-3 px-2">Unidade</th>
-                  <th className="py-3 px-2">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visitantes.map((v) => (
-                  <tr key={v.id} className="border-b border-gray-50 text-sm">
-                    <td className="py-3 px-2 font-semibold text-[#0A2540]">{v.nome}</td>
-                    <td className="py-3 px-2 text-gray-600">{v.unidade_destino}</td>
-                    <td className="py-3 px-2">
-                      <span className="font-bold text-xs bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full">
-                        {v.status}
-                      </span>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-gray-100 text-xs text-gray-400 uppercase">
+                    <th className="py-3 px-2">Nome</th>
+                    <th className="py-3 px-2">Unidade</th>
+                    <th className="py-3 px-2">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {visitantes.map((v) => (
+                    <tr key={v.id} className="border-b border-gray-50 text-sm">
+                      <td className="py-3 px-2 font-semibold text-[#0A2540]">{v.nome}</td>
+                      <td className="py-3 px-2 text-gray-600">{v.unidade_destino}</td>
+                      <td className="py-3 px-2">
+                        <span className="font-bold text-xs bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full">
+                          {v.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -880,6 +882,7 @@ export default function PortariaPage() {
           <div className="bg-white p-6 md:p-8 rounded-3xl shadow-2xl space-y-5 w-full max-w-lg relative border-2 border-red-500">
             <button
               onClick={() => setModalPanicoAberto(false)}
+              aria-label="Fechar modal de pânico"
               className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm cursor-pointer"
             >
               ✕
@@ -967,6 +970,7 @@ export default function PortariaPage() {
             <button
               type="button"
               onClick={() => setModalTurnoAberto(false)}
+              aria-label="Fechar modal de plantão"
               className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm"
             >
               ✕
@@ -1036,6 +1040,7 @@ export default function PortariaPage() {
             <button
               type="button"
               onClick={() => setModalAberto(false)}
+              aria-label="Fechar modal de registro de entrada"
               className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm"
             >
               ✕

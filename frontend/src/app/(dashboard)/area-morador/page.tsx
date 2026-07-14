@@ -234,13 +234,13 @@ export default function AreaMoradorPage() {
       {mensagemErro && (
         <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-2xl text-sm font-medium flex justify-between items-center shadow-sm">
           <span>⚠️ {mensagemErro}</span>
-          <button onClick={() => setMensagemErro("")} className="font-bold cursor-pointer">✕</button>
+          <button onClick={() => setMensagemErro("")} aria-label="Fechar alerta de erro" className="font-bold cursor-pointer">✕</button>
         </div>
       )}
       {mensagemSucesso && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl text-sm font-medium flex justify-between items-center shadow-sm">
           <span>✅ {mensagemSucesso}</span>
-          <button onClick={() => setMensagemSucesso("")} className="font-bold cursor-pointer">✕</button>
+          <button onClick={() => setMensagemSucesso("")} aria-label="Fechar alerta de sucesso" className="font-bold cursor-pointer">✕</button>
         </div>
       )}
 
@@ -539,6 +539,7 @@ export default function AreaMoradorPage() {
             <button
               type="button"
               onClick={() => setBoletoSelecionado(null)}
+              aria-label="Fechar modal do boleto"
               className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm transition-colors cursor-pointer"
             >
               ✕
@@ -659,6 +660,7 @@ export default function AreaMoradorPage() {
           <div className="bg-white p-6 rounded-3xl shadow-2xl space-y-4 w-full max-w-md relative border border-gray-100">
             <button
               onClick={() => setMostrarQrCode(false)}
+              aria-label="Fechar modal de geração de QR Code"
               className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm"
             >
               ✕

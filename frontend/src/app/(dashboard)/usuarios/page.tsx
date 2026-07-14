@@ -418,7 +418,7 @@ export default function UsuariosPage() {
         </div>
       ) : (
         /* ABA TABELA GERAL TRADICIONAL COMPLETA COM TODOS OS REGISTROS */
-        <div className="bg-white dark:bg-[#162238] rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+        <div className="bg-white dark:bg-[#162238] rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 dark:bg-[#111a2e] border-b border-gray-200 dark:border-gray-800 text-gray-500 text-xs uppercase tracking-wider">
@@ -490,6 +490,7 @@ export default function UsuariosPage() {
               </h2>
               <button
                 onClick={() => setModalAberto(false)}
+                aria-label="Fechar modal de cadastro de usuário"
                 className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 flex items-center justify-center font-bold text-sm"
               >
                 ✕
@@ -529,7 +530,7 @@ export default function UsuariosPage() {
                   className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#111a2e] text-sm focus:outline-none focus:border-blue-500"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
                     Perfil

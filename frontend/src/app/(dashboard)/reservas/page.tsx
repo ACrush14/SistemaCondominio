@@ -268,13 +268,13 @@ export default function ReservasPage() {
       {mensagemSucesso && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl text-sm font-medium flex justify-between items-center">
           <span>✅ {mensagemSucesso}</span>
-          <button onClick={() => setMensagemSucesso("")} className="font-bold">✕</button>
+          <button onClick={() => setMensagemSucesso("")} aria-label="Fechar alerta de sucesso" className="font-bold">✕</button>
         </div>
       )}
       {erro && (
         <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-2xl text-sm font-medium flex justify-between items-center">
           <span>⚠️ {erro}</span>
-          <button onClick={() => setErro("")} className="font-bold">✕</button>
+          <button onClick={() => setErro("")} aria-label="Fechar alerta de erro" className="font-bold">✕</button>
         </div>
       )}
 
@@ -501,7 +501,7 @@ export default function ReservasPage() {
             </div>
 
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
                     Início
@@ -611,6 +611,7 @@ export default function ReservasPage() {
           <div className="bg-white dark:bg-[#162238] rounded-3xl p-6 w-full max-w-lg shadow-2xl border border-gray-100 dark:border-gray-700 space-y-5 relative my-8">
             <button
               onClick={() => setModalAberto(false)}
+              aria-label="Fechar modal de agendamento"
               className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-gray-600 dark:text-gray-300 flex items-center justify-center font-bold text-sm transition-colors"
             >
               ✕
@@ -675,7 +676,7 @@ export default function ReservasPage() {
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
                     Início

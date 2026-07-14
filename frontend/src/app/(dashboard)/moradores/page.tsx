@@ -46,7 +46,7 @@ export default function MoradoresPage() {
       {/* Formulário de Cadastro */}
       <form
         onSubmit={handleSubmit}
-        className="bg-white p-6 rounded-xl shadow grid grid-cols-2 gap-4"
+        className="bg-white p-6 rounded-xl shadow grid grid-cols-1 sm:grid-cols-2 gap-4"
       >
         <input
           placeholder="Nome Completo"
@@ -76,14 +76,14 @@ export default function MoradoresPage() {
         />
         <button
           type="submit"
-          className="col-span-2 bg-blue-600 text-white py-3 rounded hover:bg-blue-700 transition"
+          className="col-span-1 sm:col-span-2 bg-blue-600 text-white py-3 rounded hover:bg-blue-700 transition"
         >
           Cadastrar Morador
         </button>
       </form>
 
       {/* Tabela de Moradores */}
-      <div className="bg-white p-6 rounded-xl shadow">
+      <div className="bg-white p-6 rounded-xl shadow overflow-x-auto">
         <table className="w-full text-left">
           <thead>
             <tr className="border-b text-neutral uppercase text-xs">

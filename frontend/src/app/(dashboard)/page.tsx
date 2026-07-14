@@ -509,14 +509,14 @@ export default function PainelSindicoPage() {
       {mensagemErro && (
         <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-2xl text-sm font-medium flex justify-between items-center">
           <span>⚠️ {mensagemErro}</span>
-          <button onClick={() => setMensagemErro("")} className="font-bold">✕</button>
+          <button onClick={() => setMensagemErro("")} aria-label="Fechar alerta de erro" className="font-bold">✕</button>
         </div>
       )}
 
       {mensagemAviso && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl text-sm font-medium flex justify-between items-center">
           <span>✅ {mensagemAviso}</span>
-          <button onClick={() => setMensagemAviso("")} className="font-bold">✕</button>
+          <button onClick={() => setMensagemAviso("")} aria-label="Fechar alerta de aviso" className="font-bold">✕</button>
         </div>
       )}
 
@@ -863,6 +863,7 @@ export default function PainelSindicoPage() {
             <button
               type="button"
               onClick={() => setModalComunicado(false)}
+              aria-label="Fechar modal de comunicado"
               className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-gray-600 dark:text-gray-300 flex items-center justify-center font-bold text-sm transition-colors"
             >
               ✕
@@ -929,6 +930,7 @@ export default function PainelSindicoPage() {
             <button
               type="button"
               onClick={() => setModalEnquete(false)}
+              aria-label="Fechar modal de enquete"
               className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-gray-600 dark:text-gray-300 flex items-center justify-center font-bold text-sm transition-colors"
             >
               ✕
@@ -1006,6 +1008,7 @@ export default function PainelSindicoPage() {
                             enqueteOpcoes.filter((_, i) => i !== idx)
                           )
                         }
+                        aria-label={`Remover opção ${idx + 1}`}
                         className="px-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-bold"
                       >
                         ✕
@@ -1041,6 +1044,7 @@ export default function PainelSindicoPage() {
           <div className="bg-white dark:bg-[#152033] p-6 md:p-8 rounded-3xl shadow-2xl space-y-6 w-full max-w-4xl relative border border-gray-200 dark:border-gray-800 max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setModalNotificacao(false)}
+              aria-label="Fechar central de notificações"
               className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 flex items-center justify-center font-bold text-sm cursor-pointer"
             >
               ✕
@@ -1067,7 +1071,7 @@ export default function PainelSindicoPage() {
                   <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">
                     Canal de Envio
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {(["EMAIL", "WHATSAPP", "AMBOS"] as const).map((c) => (
                       <button
                         type="button"
@@ -1085,7 +1089,7 @@ export default function PainelSindicoPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">Destinatário</label>
                     <input
@@ -1220,6 +1224,7 @@ export default function PainelSindicoPage() {
           <div className="bg-white dark:bg-[#152033] p-6 md:p-8 rounded-3xl shadow-2xl space-y-6 w-full max-w-4xl relative border border-gray-200 dark:border-gray-800 max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setModalSaas(false)}
+              aria-label="Fechar modal de condomínios SaaS"
               className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 flex items-center justify-center font-bold text-sm cursor-pointer"
             >
               ✕
@@ -1458,7 +1463,7 @@ export default function PainelSindicoPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">
                       CNPJ
@@ -1486,7 +1491,7 @@ export default function PainelSindicoPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="col-span-2 sm:col-span-1">
                     <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">
                       Total de Unidades

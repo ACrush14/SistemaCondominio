@@ -90,13 +90,13 @@ export default function OcorrenciasPage() {
         {mensagemErro && (
           <div className="bg-red-50 border border-red-200 text-red-800 p-3 rounded-xl text-xs font-bold flex justify-between items-center">
             <span>⚠️ {mensagemErro}</span>
-            <button onClick={() => setMensagemErro("")} className="cursor-pointer">✕</button>
+            <button onClick={() => setMensagemErro("")} aria-label="Fechar alerta de erro" className="cursor-pointer">✕</button>
           </div>
         )}
         {mensagemSucesso && (
           <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-xl text-xs font-bold flex justify-between items-center">
             <span>✅ {mensagemSucesso}</span>
-            <button onClick={() => setMensagemSucesso("")} className="cursor-pointer">✕</button>
+            <button onClick={() => setMensagemSucesso("")} aria-label="Fechar alerta de sucesso" className="cursor-pointer">✕</button>
           </div>
         )}
         {/* Top Header */}
@@ -106,7 +106,7 @@ export default function OcorrenciasPage() {
             <h1 className="text-lg font-bold text-[#0A2540]">CondoManage</h1>
           </div>
           <div className="flex items-center gap-3">
-            <button className="w-9 h-9 rounded-full bg-gray-50 flex items-center justify-center">
+            <button aria-label="Ver notificações" className="w-9 h-9 rounded-full bg-gray-50 flex items-center justify-center">
               🔔
             </button>
             <button className="w-9 h-9 rounded-full bg-gray-50 flex items-center justify-center">

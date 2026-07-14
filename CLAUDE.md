@@ -679,6 +679,32 @@ Refatorados todos os loops contínuos de polling (`setInterval` a cada 5 segundo
 - Verificação de tipagem (`npx tsc --noEmit`) limpa (`0 errors`).
 - Build de produção (`npm run build` dentro de `frontend/`) executado com sucesso e sem avisos de compilação.
 
+---
+
+## UX e Responsividade Mobile (375px) e Acessibilidade (`aria-label`) — Item 29 (2026-07-14)
+
+Realizada auditoria e refatoração nas 6 telas principais do dashboard (`page.tsx`, `portaria/page.tsx`, `reservas/page.tsx`, `area-morador/page.tsx`, `moradores/page.tsx`, `usuarios/page.tsx` e `ocorrencias/page.tsx`) para garantir que a experiência em dispositivos móveis estreitos (375px) seja fluida e que elementos interativos sem texto possuam semântica de acessibilidade para leitores de tela (`aria-label`).
+
+### O que mudou
+
+1. **Acessibilidade (`aria-label`) em Botões sem Texto**:
+   - Mapeados e atualizados 100% dos botões que exibem exclusivamente ícones (ex: botões de fechar alertas `✕`, fechar modais `✕`, remover opções `✕` e ícone de notificações `🔔`).
+   - Adicionados atributos explicativos e precisos: `aria-label="Fechar alerta de erro"`, `aria-label="Fechar alerta de sucesso"`, `aria-label="Fechar modal de pânico"`, `aria-label="Fechar central de notificações"`, `aria-label="Ver notificações"`, etc.
+2. **Rolagem Horizontal em Tabelas (`overflow-x-auto`)**:
+   - Tabelas em `portaria/page.tsx` (lista de visitantes), `moradores/page.tsx` (tabela de moradores) e `usuarios/page.tsx` (tabela de usuários) que não possuíam wrappers ou usavam `overflow-hidden` foram envolvidas em containers com `overflow-x-auto`, evitando corte horizontal ou barras de rolagem na página inteira em telas de 375px.
+3. **Grids Responsivos com Fallback Mobile (`grid-cols-1 sm:grid-cols-2`, `sm:grid-cols-3`)**:
+   - Substituídos os grids estáticos multi-coluna em modais e formulários por layouts adaptativos em mobile:
+     - **Painel do Síndico (`page.tsx`)**: Seletor de canais da Central de Notificações (`grid-cols-3` → `grid-cols-1 sm:grid-cols-3`), formulário de destinatário (`grid-cols-2` → `grid-cols-1 sm:grid-cols-2`), modais de SaaS e agendamento de comunicados.
+     - **Reservas (`reservas/page.tsx`)**: Modais de agendamento (`grid-cols-2` → `grid-cols-1 sm:grid-cols-2` para seletores de horário).
+     - **Usuários (`usuarios/page.tsx`) e Moradores (`moradores/page.tsx`)**: Formulários de cadastro e botões `col-span-2` adaptados para `col-span-1 sm:col-span-2`.
+
+### Testado
+
+- Executado `npm run test` em `frontend/`: 14/14 testes unitários aprovados (`345ms`).
+- Verificação de tipagem via `npx tsc --noEmit` limpa (0 erros).
+- Build de produção (`npm run build` no `frontend/`) compilado com sucesso para todas as 34 rotas estáticas/dinâmicas em 6.8s.
+
+
 
 
 
