@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
+import twilio from "twilio";
 import { pool } from "../../../../lib/store/db";
 import { listarNotificacoes, contarNotificacoes, garantirTabelaNotificacoes } from "../../../../lib/store/notificacoesDb";
 import { obterCondominioId } from "../../../../lib/tenant";
@@ -9,6 +10,13 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 function extrairEmail(contato: string): string | null {
   const match = contato.match(/[^\s|]+@[^\s|]+\.[^\s|]+/);
   return match ? match[0] : null;
+}
+
+function extrairTelefone(contato: string): string | null {
+  const match = contato.match(/\+?\d[\d\s\-()]{8,}\d/);
+  if (!match) return null;
+  const limpo = match[0].replace(/[^\d+]/g, "");
+  return limpo.startsWith("+") ? limpo : `+${limpo}`;
 }
 
 export async function GET(req: Request) {
@@ -63,14 +71,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: "A mensagem é obrigatória." }, { status: 400 });
     }
 
-    let status: "ENVIADO" | "FALHA" = "ENVIADO";
-    let detalhe = "";
+    let emailSucesso = false;
+    let emailDetalhe = "";
+    let whatsappSucesso = false;
+    let whatsappDetalhe = "";
 
     if (canal === "EMAIL" || canal === "AMBOS") {
       const emailDestino = extrairEmail(contato);
       if (!emailDestino) {
-        status = "FALHA";
-        detalhe = "Nenhum e-mail válido encontrado no campo de contato.";
+        emailSucesso = false;
+        emailDetalhe = "Nenhum e-mail válido encontrado no campo de contato.";
       } else {
         const resultado = await resend.emails.send({
           from: "onboarding@resend.dev",
@@ -79,20 +89,65 @@ export async function POST(req: Request) {
           html: `<p>${mensagem}</p>`,
         });
         if (resultado.error) {
-          status = "FALHA";
-          detalhe = resultado.error.message;
+          emailSucesso = false;
+          emailDetalhe = resultado.error.message;
+        } else {
+          emailSucesso = true;
         }
       }
     }
 
-    // WhatsApp ainda não está integrado a nenhum provedor real (Twilio, etc.) — não finge sucesso.
-    if (canal === "WHATSAPP" || (canal === "AMBOS" && status === "ENVIADO")) {
-      if (canal === "WHATSAPP") {
-        status = "FALHA";
+    if (canal === "WHATSAPP" || canal === "AMBOS") {
+      const telefoneDestino = extrairTelefone(contato);
+      if (!telefoneDestino) {
+        whatsappSucesso = false;
+        whatsappDetalhe = "Nenhum número de telefone válido encontrado no campo de contato.";
+      } else if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.TWILIO_PHONE_NUMBER) {
+        whatsappSucesso = false;
+        whatsappDetalhe = "Credenciais do Twilio WhatsApp (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER) não configuradas no ambiente.";
+      } else {
+        try {
+          const client = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!);
+          const fromNumber = process.env.TWILIO_PHONE_NUMBER!.startsWith("whatsapp:")
+            ? process.env.TWILIO_PHONE_NUMBER!
+            : `whatsapp:${process.env.TWILIO_PHONE_NUMBER!}`;
+          const toNumber = telefoneDestino.startsWith("whatsapp:")
+            ? telefoneDestino
+            : `whatsapp:${telefoneDestino}`;
+
+          await client.messages.create({
+            from: fromNumber,
+            to: toNumber,
+            body: `${assunto}\n\n${mensagem}`,
+          });
+          whatsappSucesso = true;
+        } catch (err: unknown) {
+          whatsappSucesso = false;
+          const msgErr = err instanceof Error ? err.message : String(err);
+          whatsappDetalhe = `Erro Twilio: ${msgErr}`;
+        }
       }
-      detalhe = detalhe
-        ? detalhe + " | WhatsApp ainda não foi integrado a um provedor real."
-        : "WhatsApp ainda não foi integrado a um provedor real.";
+    }
+
+    let status: "ENVIADO" | "FALHA" = "ENVIADO";
+    let detalhe = "";
+
+    if (canal === "EMAIL") {
+      status = emailSucesso ? "ENVIADO" : "FALHA";
+      detalhe = emailDetalhe;
+    } else if (canal === "WHATSAPP") {
+      status = whatsappSucesso ? "ENVIADO" : "FALHA";
+      detalhe = whatsappDetalhe;
+    } else {
+      if (emailSucesso && whatsappSucesso) {
+        status = "ENVIADO";
+      } else if (!emailSucesso && !whatsappSucesso) {
+        status = "FALHA";
+        detalhe = `E-mail: ${emailDetalhe} | WhatsApp: ${whatsappDetalhe}`;
+      } else {
+        status = "ENVIADO";
+        detalhe = !emailSucesso ? `E-mail falhou (${emailDetalhe})` : `WhatsApp falhou (${whatsappDetalhe})`;
+      }
     }
 
     const insert = await pool.query(
@@ -110,7 +165,7 @@ export async function POST(req: Request) {
         sucesso: status === "ENVIADO",
         mensagem:
           status === "ENVIADO"
-            ? `Notificação enviada com sucesso via ${canal}!`
+            ? (detalhe ? `Notificação enviada com ressalvas via ${canal} (${detalhe})!` : `Notificação enviada com sucesso via ${canal}!`)
             : `Falha ao notificar via ${canal}: ${detalhe}`,
         id_registro: insert.rows[0].id,
         notificacoes: logAtualizado,

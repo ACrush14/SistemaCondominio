@@ -465,7 +465,7 @@ export default function PortariaPage() {
               const mensagem = prompt("Mensagem para o morador:", "Olá! Informamos que sua encomenda foi recebida e está disponível na portaria.");
               if (!mensagem) return;
 
-              await fetch("/api/condominio/notificacoes", {
+              const res = await fetch("/api/condominio/notificacoes", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -478,7 +478,12 @@ export default function PortariaPage() {
                   tipo_evento: "PORTARIA",
                 }),
               });
-              alert("✅ Notificação disparada com sucesso via WhatsApp & E-mail!");
+              const data = await res.json().catch(() => null);
+              if (res.ok && data?.sucesso) {
+                alert(`✅ ${data.mensagem || "Notificação enviada com sucesso via WhatsApp!"}`);
+              } else {
+                alert(`⚠️ ${data?.mensagem || data?.erro || "Falha ao enviar notificação via WhatsApp."}`);
+              }
             }}
             className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold px-4 py-3.5 rounded-2xl shadow-sm text-xs flex items-center gap-2 cursor-pointer transition-all"
           >

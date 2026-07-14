@@ -704,6 +704,33 @@ Realizada auditoria e refatoração nas 6 telas principais do dashboard (`page.t
 - Verificação de tipagem via `npx tsc --noEmit` limpa (0 erros).
 - Build de produção (`npm run build` no `frontend/`) compilado com sucesso para todas as 34 rotas estáticas/dinâmicas em 6.8s.
 
+---
+
+## Integração Real de WhatsApp via Twilio — Item 2 (2026-07-14)
+
+Implementado o envio real e automatizado de notificações oficiais via WhatsApp utilizando o SDK oficial do **Twilio** em `frontend/src/app/api/condominio/notificacoes/route.ts`, eliminando a limitação anterior que apenas retornava falha informativa quando o canal escolhido era WhatsApp.
+
+### O que mudou
+
+1. **Dependência e Helper de Extração**:
+   - Instalado o pacote oficial `twilio` em `frontend/package.json`.
+   - Criada a função helper `extrairTelefone(contato: string)` que identifica e extrai números de telefone (com ou sem código de país/DDD) a partir do campo de contato composto (ex: `"joao@tailson.com | +55 11 98888-7777"` → `"+5511988887777"`).
+2. **Integração em `POST /api/condominio/notificacoes`**:
+   - Para disparos onde `canal === "WHATSAPP"` ou `canal === "AMBOS"`, o sistema verifica a presença obrigatória das variáveis de ambiente `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` e `TWILIO_PHONE_NUMBER` rigorosamente de acordo com a Regra de Ouro 1 (sem fallbacks ou stubs).
+   - Se ausentes, o sistema registra `status = "FALHA"` e detalha o motivo na resposta e no banco de dados sem quebrar a execução.
+   - Quando configurado, a rota invoca `client.messages.create(...)` pré-fixando o identificador obrigatório `whatsapp:` nos números de remetente (`from`) e destinatário (`to`), registrando o sucesso no histórico do condomínio via banco Neon (`notificacoes_enviadas`).
+3. **Tratamento de Erros no Disparo da Portaria (`portaria/page.tsx`)**:
+   - A função acionada pelo botão `📲 Avisar Morador (WhatsApp)` na tela da Portaria foi refatorada para inspecionar a resposta da API (`res.ok` e `data.sucesso`).
+   - Em vez de exibir um alerta fixo fingindo sucesso em qualquer cenário, a portaria exibe feedback exato com a mensagem de retorno (`alert(data.mensagem)`).
+
+### Testado
+
+- Executado teste de integração local ponta a ponta (`npx tsx --env-file=.env.local test-notificacoes-twilio.ts`) verificando a listagem (`GET`) e simulando disparo (`POST`) no banco real Neon sem credenciais Twilio configuradas no ambiente, retornando `status: 201`, `sucesso: false` e mensagem clara.
+- Executado `npm run test`: 14/14 testes unitários no Vitest continuam aprovados (`369ms`).
+- Verificação de tipos via `npx tsc --noEmit` limpa (`0 errors`).
+- Build de produção (`npm run build`) compilado em 8.6s de forma estável.
+
+
 
 
 
