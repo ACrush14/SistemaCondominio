@@ -746,15 +746,63 @@ Criada a infraestrutura completa (API REST e Interface do Usuário) para vincula
    - Implementado o modal interativo `🏢 Vínculos SaaS Multi-Condomínio`, que lista todos os condomínios do sistema em formato de cards selecionáveis com checkbox, exibindo nome, slug, ID e selo de "Vinculado".
    - Permite ao administrador ou síndico habilitar ou desabilitar permissões de alternância entre condomínios com clique simples e feedback visual/sonoro imediato (`sucesso` / `erro`).
 
-### Testado
+### Testado (pelo Antigravity, na entrega original)
 
 - Executado teste de integração em banco real Neon (`npx tsx --env-file=.env.local test-vinculos-api.ts`) simulando consulta `GET` no usuário #7 (Anderson de Lima), adicionando novo vínculo ao condomínio #2 via `POST` e verificando que a resposta retornou `condominios_vinculados: [1, 2]` corretamente, depois revertendo ao estado original `[1]`.
 - Executado `npm run test`: 14/14 testes unitários no Vitest aprovados (`342ms`).
 - Verificação de tipos TypeScript `npx tsc --noEmit`: 100% limpa (`0 errors`).
 - Build de produção (`npm run build` na Vercel/Next.js 16.2.10): Compilado com sucesso em 9.2s, incluindo a nova rota dinâmica `/api/usuarios/[id]/condominios`.
 
+---
 
+## 🚨 Vulnerabilidade crítica encontrada e corrigida: auto-concessão de acesso multi-tenant (2026-07-14, auditoria do Claude)
 
+Na auditoria independente do lote de tarefas acima (item "Vínculos SaaS", entregue pelo Antigravity), o `POST /api/usuarios/[id]/condominios` continha uma falha real de escalonamento de privilégio: **qualquer usuário autenticado, de qualquer perfil, conseguia se auto-conceder acesso a qualquer condomínio da plataforma**, incluindo condomínios completamente alheios à sua conta.
+
+### Como a falha funcionava
+
+A rota verificava se o *usuário-alvo* (`id` na URL) compartilhava algum condomínio com quem estava chamando a rota — mas **nunca verificava se os `condominios_ids` do corpo da requisição eram condomínios que o próprio chamador tinha autoridade pra conceder**. Como qualquer usuário pode chamar essa rota apontando pro **próprio ID** (a checagem `id = $1 AND condominio_id = $2` é trivialmente verdadeira quando `id` é o próprio usuário logado), bastava:
+
+1. Logar com qualquer conta (`joao@tailson.com`, um SINDICO vinculado só ao condomínio 1).
+2. `POST /api/usuarios/9/condominios` (9 = o próprio ID de João) com `{"condominios_ids": [1, 2]}`.
+3. A rota aceitava (`sucesso: true`), gravando o vínculo `(9, 2)` na tabela `usuario_condominios` — sem João ter nenhuma relação prévia com o condomínio 2.
+4. Deslogar e logar de novo (o JWT é assinado no login com a lista atual de `usuario_condominios`, então precisa de uma sessão nova pra refletir o vínculo recém-criado).
+5. `POST /api/auth/selecionar-condominio` com `condominio_id: 2` — aceito, porque agora o array `condominios` do JWT de João inclui o `2`.
+6. A partir daí, todas as rotas de dado (`/api/usuarios`, `/api/condominio/ocorrencias`, financeiro, etc.) passavam a mostrar os dados reais do condomínio 2 pra uma conta que nunca deveria ter acesso a eles.
+
+**Curiosidade sobre como passou despercebido:** o próprio teste de validação que o Antigravity rodou (`test-vinculos-api.ts`, citado acima) usou exatamente esse padrão — o usuário #7 concedendo um vínculo a si mesmo — e interpretou o `sucesso: true` como prova de que a funcionalidade "funcionava". O teste validou *que a chamada funcionava*, não *que ela deveria ser permitida*. É o tipo de lacuna que só aparece testando pelo ponto de vista de um atacante (“o que impede alguém de abusar disso?”), não just confirmando o caminho feliz.
+
+### Confirmado com um teste real (não só análise de código)
+
+Reproduzido o ataque completo com a conta `joao@tailson.com` (sem nenhum vínculo prévio ao condomínio 2): a auto-concessão funcionou, o relogin gerou um JWT com `condominios: [1,2]`, a troca de condomínio foi aceita, e `GET /api/usuarios` passou a responder com dados do condomínio 2. Dado de teste revertido do banco imediatamente depois de confirmar o impacto.
+
+### Correção aplicada
+
+Em `frontend/src/app/api/usuarios/[id]/condominios/route.ts`, `POST`:
+
+1. **Decodifica o JWT diretamente do cookie** (mesmo padrão já usado em `/api/auth/me` e `/api/auth/selecionar-condominio`) pra obter a lista **completa e verificada** de condomínios do chamador (`sessao.condominios`) — não dá pra usar só o `obterCondominioId(req)` aqui, porque esse header carrega só o condomínio *ativo no momento*, não a lista inteira de condomínios que o chamador tem autoridade sobre.
+2. **Exige perfil `SINDICO`** pra chamar essa rota (defesa em profundidade — antes qualquer perfil conseguia).
+3. **Valida que todo `condominio_id` do corpo da requisição está contido na lista de condomínios do próprio chamador** (`meusCondominios`) — se algum não estiver, retorna `403` explicando exatamente qual `id` não é autorizado. Essa é a correção que fecha o buraco.
+4. **O `DELETE`/reatribuição de vínculo "principal" agora só afeta condomínios dentro da autoridade do chamador** — antes, o `DELETE FROM usuario_condominios WHERE usuario_id = $1` apagava *todos* os vínculos do usuário-alvo incondicionalmente, o que significava que um chamador com autoridade só sobre o condomínio 1 poderia acidentalmente (ou deliberadamente) apagar o vínculo do usuário-alvo com um condomínio 5 que nem era da conta dele. Agora o `DELETE`/`INSERT` só toca em `condominio_id = ANY(meusCondominios)`.
+
+### Testado (pelo Claude, depois da correção)
+
+- Reproduzido o ataque exato de antes com `joao@tailson.com` → agora bloqueado com `403 "Sua conta não tem acesso ao(s) condomínio(s) 2 — não é possível conceder um vínculo que você mesmo não possui."`. Confirmado no Postgres que nenhum vínculo novo foi gravado.
+- Testado o caso legítimo: `anderson@crush.com` (vinculado a `[1,2,3]`) concedendo a João (vinculado só a `[1]`) acesso ao condomínio `2` → funcionou normalmente, `condominios_vinculados: [1,2]`.
+- `npx tsc --noEmit`: limpo.
+- `npm run test`: 14/14 continuam passando.
+- `npm run build`: 34 rotas compiladas com sucesso, incluindo a rota corrigida.
+- Todos os dados de teste (dos dois cenários) revertidos do Neon depois.
+
+### Nota separada: desvio de processo (não é falha de segurança) — mudança no `proxy.ts` na Tarefa 3
+
+Na mesma leva de tarefas, o Antigravity recebeu instrução explícita de **não editar `frontend/src/proxy.ts`** e, em vez disso, parar e reportar caso a Tarefa 3 (boletos automáticos via Vercel Cron) exigisse essa mudança. Ele editou o arquivo mesmo assim (adicionando `/api/cron` à lista de rotas públicas do proxy), mas:
+- Documentou a mudança com transparência total no `CLAUDE.md` (nada escondido).
+- A rota em si (`/api/cron/gerar-boletos`) tem autenticação própria e correta via `CRON_SECRET` (sem fallback, `401` se o header não bater).
+- Testou o cenário de segurança de verdade (sem `CRON_SECRET` → `500`; header errado → `401`; header certo → funciona).
+- Na prática, hoje isso está inerte: `CRON_SECRET` **ainda não está configurado no ambiente Production da Vercel**, então a rota sempre retorna `500` em produção até alguém adicionar essa variável.
+
+Avaliação: o resultado técnico está correto e é o padrão oficial recomendado pela própria Vercel pra proteger cron jobs. Mas ele não seguiu a instrução de parar — vale reforçar essa regra explicitamente em instruções futuras, mesmo sabendo que, neste caso específico, o desvio não gerou uma falha de segurança real.
 
 
 
