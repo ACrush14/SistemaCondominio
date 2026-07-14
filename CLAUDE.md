@@ -17,13 +17,14 @@ O repositório tem duas pastas que parecem ser "o backend" e "o frontend", mas *
 
 ## Persistência de dados
 
-**Postgres real (Neon) — migração concluída para:** `usuarios`, `ocorrencias`, `encomendas`, `reservas`, `comunicados`, `liberacoes_visita`, `visitantes` (registro manual pelo porteiro, migrado pelo Antigravity via `frontend/src/lib/store/visitantesDb.ts` — confirmado lendo o código, não é mais array em memória). Todas essas rotas em `frontend/src/app/api/**` consultam o Postgres através de `frontend/src/lib/store/db.ts` (um `Pool` do pacote `pg`, ancorado em `globalThis`). Senhas de usuários são hasheadas com `bcryptjs`.
+**Postgres real (Neon) — todas as 14 tabelas migradas e auditadas:** `usuarios`, `ocorrencias`, `encomendas`, `reservas`, `comunicados`, `liberacoes_visita`, `visitantes`, `enquetes`/`enquete_votos`, `livro_turno_portaria`, `boletos_financeiro`, `alertas_panico`, `notificacoes_enviadas`, `condominios`. Todas as rotas em `frontend/src/app/api/**` consultam o Postgres através de `frontend/src/lib/store/db.ts` (um `Pool` do pacote `pg`, ancorado em `globalThis`). Senhas de usuários são hasheadas com `bcryptjs`. As 12 tabelas de dados (todas exceto `condominios` e `enquete_votos`) têm coluna `condominio_id` com isolamento real por tenant — ver seção "Multi-Tenant de verdade" mais abaixo.
 
-Além disso, o Antigravity implementou mais tabelas/módulos não verificados a fundo nesta auditoria: `enquetes`/`enquete_votos`, `livro_turno_portaria`, `boletos_financeiro`, `alertas_panico`, `notificacoes_enviadas`, `condominios`. Ver seção "Auditoria e correções de segurança" mais abaixo antes de confiar cegamente nesses módulos.
+Histórico: `enquetes`/`enquete_votos`, `livro_turno_portaria`, `boletos_financeiro`, `alertas_panico`, `notificacoes_enviadas` e `condominios` foram implementados por outra IA (Antigravity) após um handoff, e depois auditados função por função nesta sessão — ver "Auditoria funcional completa dos módulos do Antigravity" mais abaixo pro resultado atualizado de cada um.
 
 A connection string mora em `DATABASE_URL`:
 - Localmente, em `frontend/.env.local` (gitignored).
-- Em produção, no projeto Vercel `sistemacondominio` (ambiente **Production** apenas — configurar também **Preview** esbarrou num erro de `git_branch_required`/`branch_not_found` do Vercel CLI, não resolvido; não afeta produção).
+- Em produção, no projeto Vercel `sistemacondominio`, ambiente **Production** (junto com `JWT_SECRET`, `RESEND_API_KEY`, `GEMINI_API_KEY`).
+- Ambiente **Preview** também configurado (ver seção "Ambiente Preview da Vercel" mais abaixo) — vinculado a uma branch dedicada `preview`, não a "todas as branches" (limitação conhecida do Vercel CLI em modo agente).
 
 ### Duas descobertas importantes de bugs reais (releia antes de criar tabela ou mexer em datas)
 
@@ -44,7 +45,7 @@ Login e proteção de rotas **não são mais cosméticos**. Como funciona:
 - **`frontend/src/proxy.ts`** — o "porteiro" que barra acesso às páginas sem sessão válida, redirecionando pra `/login`. **Atenção ao nome do arquivo**: nessa versão do Next.js (16.x), a convenção antiga `middleware.ts` foi **renomeada para `proxy.ts`** (função exportada também precisa se chamar `proxy`, não `middleware`) — usar o nome antigo faz o Next.js ignorar o arquivo silenciosamente (página fica em branco, sem erro claro). Ver `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md` se precisar mexer nisso de novo. Bônus dessa versão: Proxy roda em runtime Node.js por padrão (não no "Edge Runtime" restrito), então não precisa de biblioteca alternativa tipo `jose` — só `jsonwebtoken` mesmo, em todo lugar.
 - **Logout** (`frontend/src/app/api/auth/logout/route.ts`): limpa o cookie. Ligado ao botão "Sair do Sistema" do `Sidebar.tsx` (antes não fazia nada).
 
-**Limitação conhecida, não resolvida ainda:** o `matcher` do `proxy.ts` protege as **páginas** (`/`, `/reservas`, `/ocorrencias`, `/area-morador`, `/portaria`, `/usuarios`), mas **não** as rotas de API (`/api/...`) diretamente — hoje ainda é possível chamar `/api/usuarios` ou qualquer outra rota por fora, sem sessão, e ela responde normalmente. Se for endurecer a segurança, esse é o próximo passo óbvio.
+**Atualização:** a limitação original (rotas de API não protegidas pelo `matcher`) foi corrigida numa sessão seguinte — ver "Proteção Completa de Rotas de API no `proxy.ts`" mais abaixo. Hoje o `matcher` cobre `/api/:path*` também, e toda rota de API sem sessão válida recebe 401.
 
 `backend/src/middlewares/authMiddleware.js` (Express) continua irrelevante — não roda em produção.
 
@@ -105,17 +106,10 @@ O módulo de enquetes deixou de ser um mockup visual e agora é integrado com Po
 - **Item 3 — concluído**: autenticação real (JWT + cookie httpOnly + proxy.ts). Ver seção própria acima.
 - **Item 4 — concluído (exceto teste de câmera real)**: QR Code de liberação de visitantes. Ver seção própria acima.
 
-**Pendências restantes** (ver também `demandas.md` para a lista completa e o histórico do que o usuário pediu originalmente):
-1. Testar o leitor de QR Code com câmera real (bloqueador do item 4 acima)
-2. Enquetes (mural do síndico) — não existe, só mockup
-3. Financeiro do morador / 2ª via de boleto — não existe, do zero
-4. Botão de Pânico (portaria) — não existe
-5. Livro de Turno da portaria (diferente do livro de ocorrências do síndico) — não existe
-6. Migrar `/api/visitantes` (registro manual) pro Postgres — ainda em memória
-7. Proteger as rotas de API diretamente no `proxy.ts` (hoje só as páginas são protegidas — ver limitação na seção de Autenticação)
-8. Notificação por e-mail e WhatsApp — não existe
-9. Aplicação PWA para celular — não existe
-10. Resolver `DATABASE_URL` no ambiente Preview da Vercel (hoje só está em Production)
+**Pendências restantes (atualizado em 2026-07-14 — todos os itens 2-10 originais já foram concluídos, ver `demandas.md` pro histórico completo):**
+1. Testar o leitor de QR Code com câmera física real (foco/iluminação de verdade — o pipeline de software já está provado correto via upload de imagem, ver seção própria abaixo)
+2. WhatsApp real (Twilio ou similar) — adiado por decisão do usuário; hoje retorna falha honesta em vez de fingir envio
+3. Isolamento multi-tenant por usuário além do Super Admin — hoje só existe uma conta Super Admin que troca de condomínio; não há hierarquia de permissões mais granular (ex: admin de só alguns prédios)
 
 ## Como rodar localmente
 
@@ -132,7 +126,7 @@ O `backend/` (Express) também pode rodar (`cd backend && npm run dev`, porta 33
 - URL: **https://sistemacondominio-nine.vercel.app**
 - Projeto Vercel: `sistemacondominio`, na conta `acrush14` / escopo `andersoncrushlink-7788s-projects`. Deploy automático a cada push em `main` (integração com GitHub).
 - `frontend/` está "linkado" ao projeto via Vercel CLI (`vercel link`), o que criou `frontend/.vercel/` (gitignored automaticamente pelo próprio CLI).
-- Variáveis de ambiente configuradas via `vercel env add` (não pelo dashboard): `DATABASE_URL` e `JWT_SECRET`, ambas só no ambiente **Production** (`vercel env ls` pra conferir). O CLI já está autenticado nessa máquina.
+- Variáveis de ambiente configuradas via `vercel env add` (não pelo dashboard): `DATABASE_URL`, `JWT_SECRET`, `RESEND_API_KEY`, `GEMINI_API_KEY` — todas no ambiente **Production**, e as mesmas 4 também no ambiente **Preview** (vinculadas à branch `preview`, ver seção própria abaixo). `vercel env ls` pra conferir. O CLI já está autenticado nessa máquina.
 - Aviso de depreciação nos logs do `pg`/`pg-connection-string` sobre `sslmode` (`prefer`/`require`/`verify-ca` virando aliases): não quebra nada hoje, mas uma versão futura da lib vai exigir `sslmode=verify-full` explícito ou `uselibpqcompat=true`. Não tratado ainda.
 
 ### Ambiente Preview da Vercel — resolvido (2026-07-13)
@@ -255,11 +249,11 @@ Testados via API direta (`curl`, com sessão de síndico), lendo o código prime
 - ✅ **Livro de Plantão da Portaria** — testado: criar registro, marcar "ciência" de leitura, confirmado que não duplica nome de porteiro na lista `lido_por`. Sem bugs.
 - ✅ **Financeiro / 2ª via de boleto** — testado: criar boleto, atualização automática para `VENCIDO` (comparação feita com `DATE` puro e `CURRENT_DATE` no SQL — não sofre do bug de fuso horário do `TIMESTAMP`/`TIMESTAMPTZ` documentado acima, porque não há hora envolvida, só data), marcar como pago. Sem bugs.
 - ✅ **Botão de Pânico** — testado: acionar alerta, contar ativos, resolver com `resolvido_por`/`resolvido_em` preenchidos. Sem bugs.
-- ⚠️ **Central de Notificações E-mail/WhatsApp** — a mecânica de **auditoria** funciona (grava o registro corretamente), mas **não envia e-mail nem WhatsApp de verdade**. O código tem um comentário dizendo "se a chave de API externa estiver configurada, o disparo ocorre aqui" — só que não existe nenhuma chamada real a Twilio/SendGrid/WhatsApp Business API em lugar nenhum. Todo envio é marcado como `status: "ENVIADO"` incondicionalmente. Trate isso como um **log de intenção de envio**, não como envio de verdade, até alguém integrar um serviço real.
+- ⚠️🔧 **Central de Notificações E-mail/WhatsApp** — **era só um log de intenção, agora o e-mail é real.** Não enviava nada de verdade (código tinha um comentário dizendo "se a chave de API externa estiver configurada, o disparo ocorre aqui", mas nenhuma chamada real existia). Corrigido: `frontend/src/app/api/condominio/notificacoes/route.ts` agora chama a API real do **Resend** pra e-mail (testado ponta a ponta, e-mail recebido de verdade na caixa de entrada). WhatsApp continua sem provedor real integrado (decisão do usuário, adiado) — ao tentar enviar por WhatsApp, o sistema agora retorna `status: "FALHA"` honestamente com o motivo, em vez de fingir sucesso.
 - ✅🔧 **Multi-Tenant SaaS (`condominios`)** — **era decorativo, agora é isolamento de dados real** (corrigido em 2026-07-13, ver seção própria "Multi-Tenant de verdade" mais abaixo).
 - ✅🔧 **PWA** — **bug real encontrado e corrigido**: `manifest.json` referenciava `icon-192.png` e `icon-512.png` que nunca foram criados (pasta `public/` não tinha esses arquivos). Sem eles, o navegador tende a recusar o prompt de "Instalar App". Gerados os dois ícones (fundo `#0A2540`, letra "C"), confirmado que carregam com `200`/`image/png` e que o Service Worker registra e ativa sem erro.
 
-**Conclusão da auditoria:** dos 6 módulos novos verificados, 4 funcionam exatamente como documentado, 1 tinha um bug real de arquivo faltando (corrigido), e 2 têm o **nome/descrição maior do que a implementação real** (notificações não enviam de verdade; multi-tenant não isola dados) — não são bugs que quebram, mas são expectativas erradas que vale corrigir na documentação/UI se for apresentar essas funcionalidades como prontas.
+**Conclusão da auditoria (atualizada):** dos 6 módulos novos verificados, 4 funcionavam exatamente como documentado desde o início, 1 tinha um bug real de arquivo faltando (corrigido, PWA), e os 2 que tinham nome/descrição maior que a implementação real (notificações não enviavam de verdade; multi-tenant não isolava dados) **foram corrigidos em sessões seguintes** — e-mail real via Resend, e isolamento real de dados + Super Admin via `condominio_id`. Ver as seções próprias mais abaixo para os detalhes de cada correção.
 
 ---
 
@@ -287,9 +281,10 @@ Se você é o **Claude** ou outro assistente assumindo este projeto, aqui está 
 8. **Livro de Turno da Portaria** (`livro_turno_portaria`): Registro de plantões com botão de ciência/leitura pelo porteiro.
 9. **Botão de Pânico & Alerta em Tempo Real** (`alertas_panico`): Botão de emergência 1-clique em `/portaria` que dispara banner vermelho piscante no Painel do Síndico em `/` até ser resolvido.
 10. **Financeiro do Morador & 2ª Via de Boletos** (`boletos_financeiro`): Emissão com detalhamento de despesas, código de barras, PIX Copia e Cola e histórico de faturas.
-11. **Central de Notificações E-mail & WhatsApp** (`notificacoes_enviadas`): Auditoria permanente de disparos via WhatsApp e E-mail, com botões no Síndico e na Portaria.
+11. **Central de Notificações E-mail & WhatsApp** (`notificacoes_enviadas`): E-mail real via Resend (testado, e-mail recebido de verdade); WhatsApp sem provedor real ainda (retorna falha honesta), auditoria permanente de disparos no Postgres.
 12. **Aplicação PWA**: Instalável em celular/desktop com `manifest.json` e Service Worker (`sw.js`).
-13. **Multi-Condomínio SaaS** (`condominios`): Suporte a múltiplos edifícios com rotas `/api/condominios` e seletor ativo no dashboard.
+13. **Multi-Tenant real** (`condominio_id` em 12 tabelas + Super Admin): cada conta pertence a um condomínio e só vê os próprios dados; a conta `SUPER_ADMIN` consegue trocar de condomínio ativo de verdade (rotas `/api/auth/me` e `/api/auth/selecionar-condominio`, cookie `condominio_ativo`, ver seções "Multi-Tenant de verdade" e "Super Admin" mais abaixo).
+14. **3 funcionalidades de IA reais via Google Gemini** (`frontend/src/lib/gemini.ts`, modelo `gemini-2.5-flash`): resumo de ocorrências, IA Mania (assistente de reserva por linguagem natural) e Assistente Executivo IA do Síndico (lê dados reais do Postgres antes de responder). Ver seção "IA de verdade via Google Gemini" mais abaixo.
 
 ---
 
@@ -314,10 +309,21 @@ Antes chamava `http://localhost:3333/...` (Express morto) direto do componente `
 - **`page.tsx`**: `perguntarAssistenteIa` agora chama a rota relativa `/api/condominio/ia-sindico` (não mais `localhost:3333`), e o fallback de erro agora é uma mensagem honesta de falha (não mais uma "análise" fake e hardcoded).
 - **Testado**: com o banco vazio de pendências, respondeu corretamente "não há prioridades urgentes". Depois, criando de propósito uma ocorrência de vazamento e um alerta de pânico de princípio de incêndio, a IA respondeu priorizando corretamente o alerta de pânico acima da ocorrência de manutenção — confirmando que ela realmente lê e raciocina sobre os dados atuais do Postgres, não é só um texto solto. Os dados de teste foram apagados do Neon depois.
 
-**Variável de ambiente nova**: `GEMINI_API_KEY` em `frontend/.env.local` (local). **Ainda falta adicionar no ambiente Production da Vercel** (`vercel env add GEMINI_API_KEY`) antes do próximo deploy — sem isso, as 3 funcionalidades de IA vão quebrar em produção (vão cair nos fallbacks/erros, não vão crashar o app, mas não vão funcionar de verdade).
+**Variável de ambiente**: `GEMINI_API_KEY` — já adicionada em `frontend/.env.local` (local), em Production e em Preview na Vercel.
 
+---
 
+## Contas de acesso conhecidas (2026-07-14)
 
+Referência rápida — todas no mesmo Neon, condomínio 1 ("Tailson Executive") salvo indicação contrária:
+
+| Email | Senha | Perfil | Observação |
+|---|---|---|---|
+| `anderson.sindico@condominio.com` | `6K6LB1kMAQxh11DV` | SINDICO | Conta principal, criada na auditoria de segurança (senha aleatória forte) |
+| `joao@tailson.com` | `joaodelas` | SINDICO | Atalho de login rápido — botão visível só em `npm run dev`, nunca em produção (ver `frontend/src/app/login/page.tsx`) |
+| `anderson@crush.com` | `admin123` | SUPER_ADMIN | Consegue trocar de condomínio ativo de verdade — ver seção "Super Admin" mais abaixo |
+
+Não existem mais contas PORTEIRO/MORADOR de teste com senha conhecida — as antigas (`porteiro123`/`morador123`) foram removidas na auditoria de segurança (ver seção própria). Se precisar de uma, crie via `POST /api/usuarios` logado como um dos síndicos acima.
 
 ---
 

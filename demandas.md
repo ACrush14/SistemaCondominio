@@ -52,4 +52,8 @@ ia resume ocorrencias de condominio -> IA REAL (Google Gemini, modelo gemini-2.5
 ia responde duvidas frequentes dos moradores -> IA REAL (Gemini), TESTADO com frases naturais e coloquiais (ex: "daqui a duas semanas", "umas 20 pessoas"): entende data relativa, extrai área/horário/convidados corretamente e não inventa dados que não foram ditos. Essa é a "IA Mania" da Área do Morador
 relatos inteligentes p uso de areas comuns -> IA REAL (Gemini): esse era o "Assistente Executivo IA" do Síndico, que antes chamava um endpoint Express morto (localhost:3333) e sempre caía numa resposta hardcoded fixa. Agora chama uma rota Next.js real que busca dados atuais do Postgres (ocorrências em aberto, alertas de pânico ativos, encomendas pendentes) e manda pro Gemini analisar e responder com prioridades reais. Testado: prioriza corretamente um alerta de pânico ativo acima de uma ocorrência de manutenção
 
+Extras além da demanda original (pedidos depois, não estavam na lista inicial):
+- Super Admin (`anderson@crush.com`) que troca de condomínio ativo de verdade — fecha a lacuna do multi-tenant (ver CLAUDE.md, seção "Super Admin")
+- Atalho de login rápido do síndico (`joao@tailson.com`) — só aparece em ambiente de desenvolvimento local, nunca em produção
+
 Nota para quem continuar (Claude / Antigravity / qualquer IA): o arquivo CLAUDE.md na raiz tem o contexto técnico completo, incluindo a seção "Auditoria e correções de segurança" com os bugs reais encontrados. Antes de confiar que um módulo "está pronto", teste você mesmo — o histórico deste projeto já mostrou duas vezes que autoavaliação sem teste independente escondeu problemas reais.
