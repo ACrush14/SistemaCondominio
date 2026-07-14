@@ -38,17 +38,21 @@ export function proxy(req: NextRequest) {
   }
 
   try {
-    const payload = jwt.verify(token, CHAVE_SECRETA) as { condominio_id?: number; perfil?: string };
+    const payload = jwt.verify(token, CHAVE_SECRETA) as {
+      condominio_id?: number;
+      condominios?: number[];
+    };
 
-    // Super Admin pode ter escolhido um condomínio diferente do seu próprio (cookie
-    // setado só pela rota /api/auth/selecionar-condominio, que já confere o perfil).
-    // Qualquer outro perfil sempre usa o condominio_id gravado no próprio token.
+    // O usuário pode ter escolhido, na sessão atual, qualquer condomínio dentre os que
+    // o próprio token diz que ele tem acesso (cookie setado só pela rota
+    // /api/auth/selecionar-condominio, que já confere isso antes de gravar o cookie).
+    // Se o cookie não existir ou apontar pra um condomínio fora da lista permitida,
+    // cai no condominio_id "principal" gravado na conta.
     let condominioEfetivo = payload.condominio_id ?? 1;
-    if (payload.perfil === "SUPER_ADMIN") {
-      const escolhido = req.cookies.get("condominio_ativo")?.value;
-      if (escolhido && /^\d+$/.test(escolhido)) {
-        condominioEfetivo = Number(escolhido);
-      }
+    const permitidos = payload.condominios ?? [condominioEfetivo];
+    const escolhido = req.cookies.get("condominio_ativo")?.value;
+    if (escolhido && /^\d+$/.test(escolhido) && permitidos.includes(Number(escolhido))) {
+      condominioEfetivo = Number(escolhido);
     }
 
     // Sempre sobrescreve com o valor verificado do token — nunca confia num header vindo do cliente.

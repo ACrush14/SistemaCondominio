@@ -109,7 +109,7 @@ O módulo de enquetes deixou de ser um mockup visual e agora é integrado com Po
 **Pendências restantes (atualizado em 2026-07-14 — todos os itens 2-10 originais já foram concluídos, ver `demandas.md` pro histórico completo):**
 1. Testar o leitor de QR Code com câmera física real (foco/iluminação de verdade — o pipeline de software já está provado correto via upload de imagem, ver seção própria abaixo)
 2. WhatsApp real (Twilio ou similar) — adiado por decisão do usuário; hoje retorna falha honesta em vez de fingir envio
-3. Isolamento multi-tenant por usuário além do Super Admin — hoje só existe uma conta Super Admin que troca de condomínio; não há hierarquia de permissões mais granular (ex: admin de só alguns prédios)
+3. Não existe UI de administração pra vincular/desvincular usuários de condomínios adicionais — hoje só via SQL direto na tabela `usuario_condominios` (ver seção "Vínculo Síndico ↔ Condomínios")
 
 ## Como rodar localmente
 
@@ -321,7 +321,7 @@ Referência rápida — todas no mesmo Neon, condomínio 1 ("Tailson Executive")
 |---|---|---|---|
 | `anderson.sindico@condominio.com` | `6K6LB1kMAQxh11DV` | SINDICO | Conta principal, criada na auditoria de segurança (senha aleatória forte) |
 | `joao@tailson.com` | `joaodelas` | SINDICO | Atalho de login rápido — botão visível só em `npm run dev`, nunca em produção (ver `frontend/src/app/login/page.tsx`) |
-| `anderson@crush.com` | `admin123` | SUPER_ADMIN | Consegue trocar de condomínio ativo de verdade — ver seção "Super Admin" mais abaixo |
+| `anderson@crush.com` | `admin123` | SINDICO | Vinculada aos 3 condomínios da plataforma (`usuario_condominios`) — consegue trocar de condomínio ativo de verdade, ver seção "Vínculo Síndico ↔ Condomínios" mais abaixo |
 
 Não existem mais contas PORTEIRO/MORADOR de teste com senha conhecida — as antigas (`porteiro123`/`morador123`) foram removidas na auditoria de segurança (ver seção própria). Se precisar de uma, crie via `POST /api/usuarios` logado como um dos síndicos acima.
 
@@ -356,14 +356,34 @@ Todos os dados de teste (usuário e ocorrências) foram apagados do Neon depois.
 
 - ~~O seletor visual "🏢 Prédios SaaS" no painel do síndico não foi religado a nada~~ — corrigido logo em seguida, ver abaixo.
 
-## Super Admin: troca real de condomínio (2026-07-14)
+## Super Admin: troca real de condomínio (2026-07-14, v1) — substituído pouco depois, ver "Vínculo Síndico ↔ Condomínios" abaixo
 
-Implementado logo depois da correção acima, fechando a lacuna que tinha ficado documentada ("não existe um usuário que alterna entre condomínios").
+Implementado logo depois da correção acima, fechando a lacuna que tinha ficado documentada ("não existe um usuário que alterna entre condomínios"). **Esta primeira versão usava um perfil especial `SUPER_ADMIN`** — foi generalizada na sessão seguinte pra não depender de um perfil à parte (ver seção nova mais abaixo). Ficou registrado aqui só como histórico de como a ideia evoluiu.
 
-- **Novo perfil `SUPER_ADMIN`** na tabela `usuarios` (é só um valor a mais na coluna `perfil`, que já era `VARCHAR` livre — não precisou de migração de schema). Conta criada: `anderson@crush.com` (senha escolhida pelo usuário, hash bcrypt).
-- **`frontend/src/app/api/auth/me/route.ts`** (rota nova): decodifica o JWT do cookie `sessao` e devolve `id/nome/perfil/unidade`, mais o `condominio_id` **efetivo** (não o gravado na conta — ver próximo item). Existe porque o frontend precisava descobrir se quem está logado é `SUPER_ADMIN`, e antes disso não havia nenhum endpoint de "quem sou eu".
-- **`frontend/src/app/api/auth/selecionar-condominio/route.ts`** (rota nova): só aceita a troca se o JWT (lido direto do cookie, verificado de novo aqui) tiver `perfil === "SUPER_ADMIN"` — qualquer outro perfil recebe `403`. Se autorizado, grava um cookie `condominio_ativo` (mesmas flags de segurança do `sessao`: `httpOnly`, `secure` em produção, `sameSite: lax`) com o `condominio_id` escolhido.
-- **`frontend/src/proxy.ts`**: ao decodificar o JWT, se `payload.perfil === "SUPER_ADMIN"` e existir um cookie `condominio_ativo` válido, o header `x-condominio-id` (que todas as ~25 rotas já usam pra filtrar dados, ver seção "Multi-Tenant de verdade") passa a refletir esse valor escolhido, **em vez do** `condominio_id` gravado na própria conta do Super Admin. Pra qualquer outro perfil, o cookie é ignorado — mesmo que alguém tente forjá-lo manualmente, o `proxy.ts` só olha pra ele quando o JWT verificado diz `SUPER_ADMIN` (testado: um síndico normal mandando `condominio_ativo=2` manualmente continua só vendo os próprios dados).
-- **UI**: o modal "🏢 Prédios SaaS" (painel do síndico, `frontend/src/app/(dashboard)/page.tsx`) que já existia — antes só mudava um texto local — agora, quando quem está logado é `SUPER_ADMIN`, o clique num prédio da lista chama `/api/auth/selecionar-condominio` de verdade e recarrega a página inteira (`window.location.reload()`) pra todo dado exibido vir filtrado pelo novo condomínio. Pra qualquer outro perfil, clicar num prédio mostra um aviso explicando que a conta pertence só àquele condomínio (em vez de fingir que trocou).
+- Perfil `SUPER_ADMIN` na tabela `usuarios`, `proxy.ts`/`/api/auth/selecionar-condominio` checando `payload.perfil === "SUPER_ADMIN"` pra decidir quem podia trocar.
+- Essa checagem por perfil foi **substituída** por uma checagem por vínculo real no banco (tabela `usuario_condominios`) — qualquer síndico pode ter múltiplos vínculos agora, não só uma conta especial.
 
-**Testado de ponta a ponta**: login como Super Admin → `/api/auth/me` confirma `condominio_id: 1` → criada uma ocorrência de teste direto no Postgres pro condomínio 2 → super admin ainda não via ela → chamado `/api/auth/selecionar-condominio` com `condominio_id: 2` → `/api/auth/me` passou a mostrar `condominio_id: 2` → `GET /api/condominio/ocorrencias` passou a mostrar a ocorrência do condomínio 2. Testado também no navegador de verdade: clicar em "Residencial Parque das Flores" no modal mudou o nome no cabeçalho e as enquetes exibidas (que pertenciam só ao condomínio 1) sumiram, confirmando que o dado realmente mudou, não só o texto. Síndico comum tentando chamar a rota de troca recebe `403`; dado de teste apagado do Neon depois.
+## Vínculo Síndico ↔ Condomínios: multi-condomínio sem perfil especial (2026-07-14, v2)
+
+O usuário pediu explicitamente pra não depender de um perfil `SUPER_ADMIN` à parte: *"o síndico de condomínio [deve ser] atrelado a um ou mais condomínios na base de dados, pois assim só precisa aproveitar o síndico para isso"*. Reescrito em cima da v1 acima.
+
+### O que mudou
+
+1. **Tabela nova `usuario_condominios`** (`usuario_id`, `condominio_id`, chave primária composta, `ON DELETE CASCADE` nos dois lados): relação **muitos-para-muitos** entre usuários e condomínios. Todo usuário existente foi migrado com um vínculo pro próprio `condominio_id` que já tinha (`INSERT ... SELECT id, condominio_id FROM usuarios`). A coluna `usuarios.condominio_id` continua existindo e vira o condomínio "principal/padrão" (pra onde o login cai por padrão) — a tabela nova é quem decide **todos** os condomínios que aquele usuário pode acessar/alternar.
+2. **`anderson@crush.com` deixou de ser `SUPER_ADMIN` e virou `SINDICO` normal**, só que vinculado aos 3 condomínios da plataforma na tabela nova (`UPDATE usuarios SET perfil = 'SINDICO' ...` + 3 linhas em `usuario_condominios`). Nenhum código especial de perfil é necessário pra essa conta funcionar — ela é só um síndico com mais de um vínculo.
+3. **Login (`/api/auth/login/route.ts`)**: depois de validar a senha, busca todos os `condominio_id` vinculados na tabela nova e assina no JWT como `condominios: number[]` (além do `condominio_id` "principal" que já existia).
+4. **`frontend/src/proxy.ts`**: a checagem de perfil (`payload.perfil === "SUPER_ADMIN"`) foi removida. Agora, se existir um cookie `condominio_ativo` **e** o valor dele estiver dentro do array `payload.condominios` (do próprio JWT verificado, sem precisar consultar o banco a cada requisição), esse valor vira o `x-condominio-id` efetivo. Fora dessa condição, cai no `condominio_id` principal — como sempre foi.
+5. **`/api/auth/selecionar-condominio/route.ts`**: a checagem virou `permitidos.includes(condominio_id_pedido)` (onde `permitidos` vem do JWT) em vez de checar perfil. Retorna `403 "Sua conta não tem acesso a este condomínio."` pra qualquer tentativa fora da lista.
+6. **`/api/auth/me/route.ts`**: passou a devolver também `condominios: number[]` (a lista completa), não só o `condominio_id` efetivo.
+7. **`POST /api/usuarios`** (criar novo usuário): agora também insere a linha correspondente em `usuario_condominios` — sem isso, um usuário criado depois desta mudança ficaria sem nenhum vínculo e o login dele quebraria (array vazio).
+8. **UI** (`frontend/src/app/(dashboard)/page.tsx`): o modal "🏢 Prédios SaaS" agora decide "pode trocar pra este prédio?" checando se o `id` do prédio está no array `condominios` vindo de `/api/auth/me` (`meusCondominios.includes(c.id)`), não mais um booleano fixo de "sou super admin". Prédios fora da lista mostram "Sem acesso" em vez de "Clique para Ativar", e o clique mostra um aviso explicando que a conta não tem vínculo com aquele condomínio.
+
+### Testado (dados de teste apagados depois)
+
+- Login como `anderson@crush.com` (agora `SINDICO`, vinculado a `[1,2,3]`) → `/api/auth/me` confirma `condominios: [1,2,3]` → `POST /api/auth/selecionar-condominio` com `condominio_id: 3` funciona, `/api/auth/me` passa a mostrar `condominio_id: 3`.
+- Login como `joao@tailson.com` (vinculado só a `[1]`) → tentativa de `POST /api/auth/selecionar-condominio` com `condominio_id: 2` → `403 "Sua conta não tem acesso a este condomínio."`
+- Criada uma ocorrência de teste real no condomínio 2 → `joao` forjando manualmente o cookie `condominio_ativo=2` (via `curl -b "condominio_ativo=2"`, sem passar pela rota de seleção) continuou vendo lista **vazia** — o `proxy.ts` ignorou o cookie forjado porque `2` não está no array `condominios` do JWT dele. Testado também no navegador de verdade: modal lista os 3 prédios pra `anderson@crush.com` sem nenhum "Sem acesso", todos clicáveis.
+
+### O que continua fora do escopo
+
+- Não existe (ainda) uma UI pra um síndico vincular/desvincular outro usuário de condomínios adicionais — hoje isso só é feito via SQL direto (`INSERT INTO usuario_condominios ...`). Se isso virar uma necessidade recorrente, vale criar uma rota/tela de administração pra isso.

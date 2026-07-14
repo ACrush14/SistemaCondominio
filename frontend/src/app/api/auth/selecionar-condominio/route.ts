@@ -3,7 +3,8 @@ import jwt from "jsonwebtoken";
 import { pool } from "../../../../lib/store/db";
 
 interface PayloadSessao {
-  perfil: string;
+  condominio_id?: number;
+  condominios?: number[];
 }
 
 export async function POST(req: Request) {
@@ -25,15 +26,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ erro: "Sessão inválida." }, { status: 401 });
   }
 
-  if (payload.perfil !== "SUPER_ADMIN") {
+  const { condominio_id } = await req.json();
+  const idNumerico = Number(condominio_id);
+
+  const permitidos = payload.condominios ?? [payload.condominio_id ?? 1];
+  if (!permitidos.includes(idNumerico)) {
     return NextResponse.json(
-      { erro: "Só o Super Admin pode alternar entre condomínios." },
+      { erro: "Sua conta não tem acesso a este condomínio." },
       { status: 403 }
     );
   }
-
-  const { condominio_id } = await req.json();
-  const idNumerico = Number(condominio_id);
 
   const existe = await pool.query("SELECT id, nome FROM condominios WHERE id = $1", [idNumerico]);
   if (existe.rowCount === 0) {

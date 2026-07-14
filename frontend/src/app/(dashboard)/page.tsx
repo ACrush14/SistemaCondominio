@@ -86,7 +86,7 @@ export default function PainelSindicoPage() {
     fetch("/api/auth/me")
       .then((res) => res.json())
       .then((data) => {
-        setSouSuperAdmin(data.perfil === "SUPER_ADMIN");
+        setMeusCondominios(Array.isArray(data.condominios) ? data.condominios : [data.condominio_id ?? 1]);
         setCondominioIdReal(data.condominio_id ?? 1);
       })
       .catch(() => {});
@@ -146,7 +146,7 @@ export default function PainelSindicoPage() {
     plano: "ENTERPRISE",
   });
   const [modalSaas, setModalSaas] = useState(false);
-  const [souSuperAdmin, setSouSuperAdmin] = useState(false);
+  const [meusCondominios, setMeusCondominios] = useState<number[]>([]);
   const [trocandoCondominio, setTrocandoCondominio] = useState(false);
   const [condominioIdReal, setCondominioIdReal] = useState<number | null>(null);
   const [novoPredioNome, setNovoPredioNome] = useState("");
@@ -1129,15 +1129,16 @@ export default function PainelSindicoPage() {
                 </h4>
 
                 <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
-                  {condominios.map((c) => {
+  {condominios.map((c) => {
                     const isAtivo = (condominioIdReal ?? condominioAtivo.id) === c.id;
+                    const temAcesso = meusCondominios.includes(c.id);
                     return (
                       <div
                         key={c.id}
                         onClick={async () => {
-                          if (!souSuperAdmin) {
+                          if (!temAcesso) {
                             setMensagemAviso(
-                              "Só o Super Admin pode alternar entre condomínios — sua conta pertence só a este."
+                              "Sua conta não tem acesso a este condomínio — fale com quem administra a plataforma pra vincular seu usuário a ele."
                             );
                             return;
                           }
@@ -1164,7 +1165,7 @@ export default function PainelSindicoPage() {
                           }
                         }}
                         className={`p-4 rounded-2xl border transition-all ${
-                          souSuperAdmin ? "cursor-pointer" : "cursor-not-allowed opacity-80"
+                          temAcesso ? "cursor-pointer" : "cursor-not-allowed opacity-80"
                         } ${
                           isAtivo
                             ? "bg-amber-50 dark:bg-amber-950/40 border-amber-500 shadow-sm"
@@ -1188,8 +1189,10 @@ export default function PainelSindicoPage() {
                             <span className="text-amber-700 dark:text-amber-400 font-extrabold">
                               ✓ ATIVO AGORA
                             </span>
-                          ) : (
+                          ) : temAcesso ? (
                             <span className="text-blue-600 font-bold">Clique para Ativar →</span>
+                          ) : (
+                            <span className="text-gray-400 font-bold">Sem acesso</span>
                           )}
                         </div>
                       </div>

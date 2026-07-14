@@ -25,6 +25,14 @@ export async function POST(req: Request) {
       [body.nome, body.email, senhaHash, body.perfil || "MORADOR", body.unidade || "-", condominioId]
     );
 
+    // Todo usuário precisa de pelo menos um vínculo em usuario_condominios (o próprio
+    // condominio_id) — sem isso o JWT emitido no login dele ficaria com a lista vazia.
+    await pool.query(
+      `INSERT INTO usuario_condominios (usuario_id, condominio_id) VALUES ($1, $2)
+       ON CONFLICT DO NOTHING`,
+      [resultado.rows[0].id, condominioId]
+    );
+
     return NextResponse.json(resultado.rows[0], { status: 201 });
   } catch (erro: unknown) {
     if (erro && typeof erro === "object" && "code" in erro && erro.code === "23505") {

@@ -8,6 +8,7 @@ interface PayloadSessao {
   perfil: string;
   unidade: string;
   condominio_id?: number;
+  condominios?: number[];
 }
 
 export async function GET(req: Request) {
@@ -29,9 +30,11 @@ export async function GET(req: Request) {
       nome: payload.nome,
       perfil: payload.perfil,
       unidade: payload.unidade,
-      // condominio_id EFETIVO (já considera a troca feita por um Super Admin via
-      // /api/auth/selecionar-condominio) — o proxy.ts já calculou isso no header.
+      // condominio_id EFETIVO (já considera troca feita via /api/auth/selecionar-condominio)
+      // — o proxy.ts já calculou isso no header.
       condominio_id: obterCondominioId(req),
+      // Todos os condomínios que esta conta pode acessar/alternar (tabela usuario_condominios).
+      condominios: payload.condominios ?? [payload.condominio_id ?? 1],
     });
   } catch (_erro) {
     return NextResponse.json({ erro: "Sessão inválida." }, { status: 401 });
