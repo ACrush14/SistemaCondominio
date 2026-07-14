@@ -83,6 +83,14 @@ export default function PainelSindicoPage() {
       .then((data) => setComunicados(data))
       .catch(() => {});
 
+    fetch("/api/auth/me")
+      .then((res) => res.json())
+      .then((data) => {
+        setSouSuperAdmin(data.perfil === "SUPER_ADMIN");
+        setCondominioIdReal(data.condominio_id ?? 1);
+      })
+      .catch(() => {});
+
     carregarEnquetes();
     carregarPanico();
     carregarCondominios();
@@ -138,6 +146,9 @@ export default function PainelSindicoPage() {
     plano: "ENTERPRISE",
   });
   const [modalSaas, setModalSaas] = useState(false);
+  const [souSuperAdmin, setSouSuperAdmin] = useState(false);
+  const [trocandoCondominio, setTrocandoCondominio] = useState(false);
+  const [condominioIdReal, setCondominioIdReal] = useState<number | null>(null);
   const [novoPredioNome, setNovoPredioNome] = useState("");
   const [novoPredioCnpj, setNovoPredioCnpj] = useState("");
   const [novoPredioEndereco, setNovoPredioEndereco] = useState("");
@@ -156,6 +167,14 @@ export default function PainelSindicoPage() {
       })
       .catch(() => {});
   };
+
+  // Assim que sabemos o condomínio EFETIVO (via /api/auth/me) e a lista completa,
+  // sincroniza o card exibido como "ativo" com a realidade — não com um palpite local.
+  useEffect(() => {
+    if (condominioIdReal === null || condominios.length === 0) return;
+    const real = condominios.find((c) => c.id === condominioIdReal);
+    if (real) setCondominioAtivo(real);
+  }, [condominioIdReal, condominios]);
 
 
   const enviarNotificacao = async (e: React.FormEvent) => {
@@ -1111,15 +1130,42 @@ export default function PainelSindicoPage() {
 
                 <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
                   {condominios.map((c) => {
-                    const isAtivo = condominioAtivo.id === c.id;
+                    const isAtivo = (condominioIdReal ?? condominioAtivo.id) === c.id;
                     return (
                       <div
                         key={c.id}
-                        onClick={() => {
-                          setCondominioAtivo(c);
-                          setMensagemAviso(`Prédio ativo alterado para: ${c.nome}`);
+                        onClick={async () => {
+                          if (!souSuperAdmin) {
+                            setMensagemAviso(
+                              "Só o Super Admin pode alternar entre condomínios — sua conta pertence só a este."
+                            );
+                            return;
+                          }
+                          if (isAtivo || trocandoCondominio) return;
+                          setTrocandoCondominio(true);
+                          try {
+                            const res = await fetch("/api/auth/selecionar-condominio", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ condominio_id: c.id }),
+                            });
+                            const data = await res.json();
+                            if (!res.ok) {
+                              setMensagemAviso(data.erro || "Erro ao trocar de condomínio.");
+                              setTrocandoCondominio(false);
+                              return;
+                            }
+                            // Recarrega a página inteira: todo dado exibido (ocorrências, reservas,
+                            // enquetes etc.) precisa ser buscado de novo com o novo condomínio ativo.
+                            window.location.reload();
+                          } catch (_err) {
+                            setMensagemAviso("Erro ao trocar de condomínio.");
+                            setTrocandoCondominio(false);
+                          }
                         }}
-                        className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                        className={`p-4 rounded-2xl border transition-all ${
+                          souSuperAdmin ? "cursor-pointer" : "cursor-not-allowed opacity-80"
+                        } ${
                           isAtivo
                             ? "bg-amber-50 dark:bg-amber-950/40 border-amber-500 shadow-sm"
                             : "bg-white dark:bg-[#111a2e] border-gray-200 dark:border-gray-800 hover:border-amber-400"

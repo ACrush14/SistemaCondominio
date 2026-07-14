@@ -9,8 +9,7 @@ export default function LoginPage() {
   const [carregando, setCarregando] = useState(false);
   const router = useRouter();
 
-  const fazerLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const autenticar = async (emailLogin: string, senhaLogin: string) => {
     setErro("");
     setCarregando(true);
 
@@ -18,7 +17,7 @@ export default function LoginPage() {
       const resposta = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), senha: senha.trim() }),
+        body: JSON.stringify({ email: emailLogin.trim().toLowerCase(), senha: senhaLogin.trim() }),
       });
 
       const dados = await resposta.json();
@@ -39,6 +38,15 @@ export default function LoginPage() {
       setCarregando(false);
     }
   };
+
+  const fazerLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    autenticar(email, senha);
+  };
+
+  // Atalho de desenvolvimento: nunca aparece no build de produção (Vercel).
+  // Existe pra agilizar testes locais, não pra ficar exposto no app publicado.
+  const ehDesenvolvimento = process.env.NODE_ENV !== "production";
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-neutral-light p-4">
@@ -93,6 +101,22 @@ export default function LoginPage() {
             {carregando ? "Autenticando..." : "Entrar no Sistema"}
           </button>
         </form>
+
+        {ehDesenvolvimento && (
+          <div className="mt-5 pt-5 border-t border-neutral-light">
+            <p className="text-xs text-neutral-dark/60 text-center mb-2">
+              Atalho de desenvolvimento (não aparece em produção)
+            </p>
+            <button
+              type="button"
+              disabled={carregando}
+              onClick={() => autenticar("joao@tailson.com", "joaodelas")}
+              className="w-full bg-neutral-light hover:bg-neutral/20 disabled:opacity-50 text-neutral-dark font-semibold py-3 rounded-xl border border-neutral/40 transition-all cursor-pointer text-sm"
+            >
+              🔑 Entrar como Síndico (joao@tailson.com)
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -346,7 +346,18 @@ Criado um segundo usuário de teste (`condominio_id = 2`, prédio "Residencial P
 
 Todos os dados de teste (usuário e ocorrências) foram apagados do Neon depois. `npx tsc --noEmit` limpo depois de todas as mudanças.
 
-### O que continua fora do escopo desta correção
+### O que continua fora do escopo desta correção (na época) — resolvido depois, ver seção "Super Admin" abaixo
 
-- O seletor visual "🏢 Prédios SaaS" no painel do síndico não foi religado a nada — ele não faz um síndico "entrar" em outro condomínio (isso exigiria um conceito de usuário "super-admin" com permissão de acessar múltiplos tenants, que não existe hoje — cada conta pertence a exatamente um condomínio).
-- Não existe uma tela de "trocar de condomínio" pra um usuário que administra mais de um prédio. Se isso for necessário no futuro, é um projeto à parte (autorização multi-tenant por usuário, não só por linha de dado).
+- ~~O seletor visual "🏢 Prédios SaaS" no painel do síndico não foi religado a nada~~ — corrigido logo em seguida, ver abaixo.
+
+## Super Admin: troca real de condomínio (2026-07-14)
+
+Implementado logo depois da correção acima, fechando a lacuna que tinha ficado documentada ("não existe um usuário que alterna entre condomínios").
+
+- **Novo perfil `SUPER_ADMIN`** na tabela `usuarios` (é só um valor a mais na coluna `perfil`, que já era `VARCHAR` livre — não precisou de migração de schema). Conta criada: `anderson@crush.com` (senha escolhida pelo usuário, hash bcrypt).
+- **`frontend/src/app/api/auth/me/route.ts`** (rota nova): decodifica o JWT do cookie `sessao` e devolve `id/nome/perfil/unidade`, mais o `condominio_id` **efetivo** (não o gravado na conta — ver próximo item). Existe porque o frontend precisava descobrir se quem está logado é `SUPER_ADMIN`, e antes disso não havia nenhum endpoint de "quem sou eu".
+- **`frontend/src/app/api/auth/selecionar-condominio/route.ts`** (rota nova): só aceita a troca se o JWT (lido direto do cookie, verificado de novo aqui) tiver `perfil === "SUPER_ADMIN"` — qualquer outro perfil recebe `403`. Se autorizado, grava um cookie `condominio_ativo` (mesmas flags de segurança do `sessao`: `httpOnly`, `secure` em produção, `sameSite: lax`) com o `condominio_id` escolhido.
+- **`frontend/src/proxy.ts`**: ao decodificar o JWT, se `payload.perfil === "SUPER_ADMIN"` e existir um cookie `condominio_ativo` válido, o header `x-condominio-id` (que todas as ~25 rotas já usam pra filtrar dados, ver seção "Multi-Tenant de verdade") passa a refletir esse valor escolhido, **em vez do** `condominio_id` gravado na própria conta do Super Admin. Pra qualquer outro perfil, o cookie é ignorado — mesmo que alguém tente forjá-lo manualmente, o `proxy.ts` só olha pra ele quando o JWT verificado diz `SUPER_ADMIN` (testado: um síndico normal mandando `condominio_ativo=2` manualmente continua só vendo os próprios dados).
+- **UI**: o modal "🏢 Prédios SaaS" (painel do síndico, `frontend/src/app/(dashboard)/page.tsx`) que já existia — antes só mudava um texto local — agora, quando quem está logado é `SUPER_ADMIN`, o clique num prédio da lista chama `/api/auth/selecionar-condominio` de verdade e recarrega a página inteira (`window.location.reload()`) pra todo dado exibido vir filtrado pelo novo condomínio. Pra qualquer outro perfil, clicar num prédio mostra um aviso explicando que a conta pertence só àquele condomínio (em vez de fingir que trocou).
+
+**Testado de ponta a ponta**: login como Super Admin → `/api/auth/me` confirma `condominio_id: 1` → criada uma ocorrência de teste direto no Postgres pro condomínio 2 → super admin ainda não via ela → chamado `/api/auth/selecionar-condominio` com `condominio_id: 2` → `/api/auth/me` passou a mostrar `condominio_id: 2` → `GET /api/condominio/ocorrencias` passou a mostrar a ocorrência do condomínio 2. Testado também no navegador de verdade: clicar em "Residencial Parque das Flores" no modal mudou o nome no cabeçalho e as enquetes exibidas (que pertenciam só ao condomínio 1) sumiram, confirmando que o dado realmente mudou, não só o texto. Síndico comum tentando chamar a rota de troca recebe `403`; dado de teste apagado do Neon depois.
