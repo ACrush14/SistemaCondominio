@@ -135,6 +135,16 @@ O `backend/` (Express) também pode rodar (`cd backend && npm run dev`, porta 33
 - Variáveis de ambiente configuradas via `vercel env add` (não pelo dashboard): `DATABASE_URL` e `JWT_SECRET`, ambas só no ambiente **Production** (`vercel env ls` pra conferir). O CLI já está autenticado nessa máquina.
 - Aviso de depreciação nos logs do `pg`/`pg-connection-string` sobre `sslmode` (`prefer`/`require`/`verify-ca` virando aliases): não quebra nada hoje, mas uma versão futura da lib vai exigir `sslmode=verify-full` explícito ou `uselibpqcompat=true`. Não tratado ainda.
 
+### Ambiente Preview da Vercel — resolvido (2026-07-13)
+
+O bloqueio antigo (`git_branch_required`/`branch_not_found`) era real, mas a causa raiz era outra: o projeto só tinha a branch `main`, que é a **Production Branch** — a Vercel recusa (corretamente) vincular uma variável de ambiente de Preview a ela, já que pushes em `main` nunca geram deploy de Preview. Além disso, o modo "aplicar a todas as branches de Preview" (`vercel env add VAR preview --value ... --yes`, sem especificar branch) trava numa resposta `action_required` (`git_branch_required`) que se repete indefinidamente em modo agente/não-interativo, não importa a combinação de flags (`--yes`, `-y`, `--force`, stdin fechado) — parece um bug/limitação genuína do Vercel CLI 50.x quando detecta `isAgent=true`.
+
+**Solução aplicada**: criada e publicada uma branch dedicada `preview` (`git checkout -b preview && git push -u origin preview`), e as 4 variáveis (`DATABASE_URL`, `JWT_SECRET`, `RESEND_API_KEY`, `GEMINI_API_KEY`) foram vinculadas ao ambiente Preview **especificamente para essa branch**: `vercel env add NOME preview preview --value "..." --yes` (o segundo `preview` ali é o nome da branch, coincidindo com o nome do ambiente — um pouco confuso, mas funciona).
+
+**Testado**: rodando `vercel deploy --target=preview` a partir da branch `preview` local, o build completou com sucesso (sem os erros de "API key ausente" que apareceram numa tentativa anterior rodada a partir de `main`, confirmando que as variáveis realmente carregam nesse contexto). A própria URL de preview fica atrás do SSO da equipe da Vercel (comportamento padrão, não relacionado à aplicação), então não foi possível testar uma rota autenticada via `curl` direto — mas o sucesso do build já é evidência suficiente de que as envs estão corretas.
+
+**Para usar na prática**: qualquer Pull Request aberto a partir da branch `preview` (ou de uma branch derivada dela) vai gerar um deploy de Preview funcional. Branches com outros nomes precisariam de suas próprias variáveis vinculadas (a Vercel não faz correspondência por padrão/wildcard nesse nível, só "todas as branches" — que é justamente o modo que não funciona pelo CLI em modo agente — ou uma branch exata).
+
 ## Prints das telas
 
 Capturados com Playwright (instalado temporariamente, script descartado depois — se precisar gerar novos, reinstale com `npm install -D playwright && npx playwright install chromium`, capture, e desinstale de novo antes de commitar, para não quebrar o build da Vercel). Ficam em `docs/screenshots/`.
