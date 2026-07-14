@@ -56,6 +56,8 @@ export default function PortariaPage() {
     tipo: "sucesso" | "erro";
     mensagem: string;
   } | null>(null);
+  const [codigoDigitado, setCodigoDigitado] = useState("");
+  const [validandoCodigoDigitado, setValidandoCodigoDigitado] = useState(false);
 
   // Estado Livro de Turno
   const [registrosTurno, setRegistrosTurno] = useState<RegistroTurno[]>([]);
@@ -209,6 +211,19 @@ export default function PortariaPage() {
       setResultadoScan({ tipo: "erro", mensagem: "Erro ao validar o código." });
     }
   }, []);
+
+  const liberarComCodigoDigitado = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const codigo = codigoDigitado.trim();
+    if (!codigo) return;
+    setValidandoCodigoDigitado(true);
+    try {
+      await validarCodigo(codigo);
+      setCodigoDigitado("");
+    } finally {
+      setValidandoCodigoDigitado(false);
+    }
+  };
 
   useEffect(() => {
     if (!scannerAtivo) return;
@@ -645,9 +660,47 @@ export default function PortariaPage() {
       {abaAtiva === "VISITANTES" && (
         <div className="space-y-6">
           <div className="bg-white shadow-sm rounded-3xl p-6 border border-gray-100 space-y-4">
+            <div>
+              <h2 className="text-xl font-bold text-[#0A2540]">Digitar Código de Liberação</h2>
+              <p className="text-xs text-gray-500 mt-1">
+                Peça o código de 6 dígitos que o morador recebeu — mais simples que escanear o QR Code
+              </p>
+            </div>
+
+            {resultadoScan && (
+              <div
+                className={`p-4 rounded-2xl text-sm font-bold ${
+                  resultadoScan.tipo === "sucesso"
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                    : "bg-red-50 text-red-800 border border-red-200"
+                }`}
+              >
+                {resultadoScan.mensagem}
+              </div>
+            )}
+
+            <form onSubmit={liberarComCodigoDigitado} className="flex gap-2">
+              <input
+                value={codigoDigitado}
+                onChange={(e) => setCodigoDigitado(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="Ex: 042817"
+                inputMode="numeric"
+                className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-lg font-bold tracking-[0.3em] text-center focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              <button
+                type="submit"
+                disabled={validandoCodigoDigitado || !codigoDigitado.trim()}
+                className="bg-[#0A2540] hover:bg-[#0A2540]/90 disabled:opacity-50 text-white px-6 py-3 rounded-xl text-sm font-bold transition-colors cursor-pointer"
+              >
+                {validandoCodigoDigitado ? "..." : "Liberar"}
+              </button>
+            </form>
+          </div>
+
+          <div className="bg-white shadow-sm rounded-3xl p-6 border border-gray-100 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-[#0A2540]">Escanear QR Code de Liberação</h2>
+                <h2 className="text-xl font-bold text-[#0A2540]">Ou Escanear QR Code</h2>
                 <p className="text-xs text-gray-500 mt-1">
                   Aponte a câmera para o QR gerado pelo morador em 24h
                 </p>
@@ -662,18 +715,6 @@ export default function PortariaPage() {
                 {scannerAtivo ? "Parar Câmera" : "Ativar Câmera"}
               </button>
             </div>
-
-            {resultadoScan && (
-              <div
-                className={`p-4 rounded-2xl text-sm font-bold ${
-                  resultadoScan.tipo === "sucesso"
-                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                    : "bg-red-50 text-red-800 border border-red-200"
-                }`}
-              >
-                {resultadoScan.mensagem}
-              </div>
-            )}
 
             {scannerAtivo && <div id="leitor-qr" className="rounded-2xl overflow-hidden" />}
           </div>

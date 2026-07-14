@@ -52,6 +52,7 @@ export default function AreaMoradorPage() {
   const [mostrarQrCode, setMostrarQrCode] = useState(false);
   const [nomeVisitanteQr, setNomeVisitanteQr] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [codigoGerado, setCodigoGerado] = useState<string | null>(null);
   const [gerandoQr, setGerandoQr] = useState(false);
   const [erroQr, setErroQr] = useState("");
 
@@ -114,6 +115,7 @@ export default function AreaMoradorPage() {
     setQrDataUrl(null);
     setErroQr("");
     setNomeVisitanteQr("");
+    setCodigoGerado(null);
     setMostrarQrCode(true);
   };
 
@@ -135,8 +137,11 @@ export default function AreaMoradorPage() {
         setErroQr(dados.erro || "Erro ao gerar QR Code.");
         return;
       }
-      const imagem = await QRCode.toDataURL(dados.codigo);
+      // width/margin generosos: QR pequeno ou sem "zona de silêncio" ao redor é a causa mais
+      // comum de câmera não conseguir focar/decodificar quando o código é lido de uma tela.
+      const imagem = await QRCode.toDataURL(dados.codigo, { width: 400, margin: 3 });
       setQrDataUrl(imagem);
+      setCodigoGerado(dados.codigo);
     } catch (_err) {
       setErroQr("Erro ao gerar QR Code.");
     } finally {
@@ -647,9 +652,18 @@ export default function AreaMoradorPage() {
                 {gerandoQr ? "Gerando..." : "Criar QR Code"}
               </button>
             ) : (
-              <div className="text-center space-y-3">
-                <img src={qrDataUrl} alt="QR Code" className="mx-auto w-48 h-48 border rounded-2xl p-2" />
-                <p className="text-xs text-gray-500">Apresente este QR Code na portaria</p>
+              <div className="text-center space-y-4">
+                <div className="bg-[#0A2540] text-white rounded-2xl py-4 px-3 space-y-1">
+                  <p className="text-xs text-blue-200 font-semibold uppercase tracking-wider">
+                    Código de Liberação
+                  </p>
+                  <p className="text-4xl font-extrabold tracking-[0.3em]">{codigoGerado}</p>
+                  <p className="text-xs text-blue-200">
+                    Informe este número na portaria — mais simples que o QR Code
+                  </p>
+                </div>
+                <img src={qrDataUrl} alt="QR Code" className="mx-auto w-72 h-72 border rounded-2xl p-2" />
+                <p className="text-xs text-gray-500">Ou apresente este QR Code na portaria</p>
               </div>
             )}
           </div>

@@ -57,3 +57,54 @@ Extras além da demanda original (pedidos depois, não estavam na lista inicial)
 - Atalho de login rápido do síndico (`joao@tailson.com`) — só aparece em ambiente de desenvolvimento local, nunca em produção
 
 Nota para quem continuar (Claude / Antigravity / qualquer IA): o arquivo CLAUDE.md na raiz tem o contexto técnico completo, incluindo a seção "Auditoria e correções de segurança" com os bugs reais encontrados. Antes de confiar que um módulo "está pronto", teste você mesmo — o histórico deste projeto já mostrou duas vezes que autoavaliação sem teste independente escondeu problemas reais.
+
+---
+
+## Pendências e Gaps para Análise (levantado em 2026-07-14)
+
+Lista numerada pra você analisar item a item e decidir o que vale a pena. Os itens 1-3 são as demandas que já estavam em andamento (prioridade); os itens 4+ são gaps levantados numa varredura geral do projeto, sem ordem de prioridade definida ainda.
+
+**Prioridade (demandas já em andamento):**
+1. ~~Testar o leitor de QR Code com câmera física real~~ — RESOLVIDO DE OUTRA FORMA (2026-07-14): teste com câmera real do celular esbarrou em dificuldades (câmera não iniciava sozinha, exige clicar "Start Scanning"; upload de print de tela deu "Código inválido"). Decisão do usuário: em vez de depender só da câmera, adicionado um **código numérico de 6 dígitos digitável** como método principal (reaproveita a mesma validação, testado de ponta a ponta em dispositivos reais com sucesso). O QR Code continua existindo como método alternativo, mas o teste com câmera física fica para o futuro — ver CLAUDE.md, seção "Código numérico de 6 dígitos"
+2. WhatsApp real (Twilio ou similar) — adiado por decisão sua; hoje retorna falha honesta em vez de fingir envio
+3. UI de administração para vincular/desvincular um usuário de condomínios adicionais — hoje só é feito via SQL direto na tabela `usuario_condominios`
+
+**Segurança:**
+4. Sem rate limiting em nenhuma rota (login, IA/Gemini, notificações/Resend, validação de QR Code) — abre espaço pra força bruta ou estouro de cota paga
+5. Sem bloqueio de conta após várias tentativas de login falhas
+6. JWT sem revogação server-side — dura 1 dia, sem blocklist nem refresh token; se vazar, fica válido até expirar
+7. Sem fluxo de "esqueci minha senha" — só reset manual via banco
+8. Sem 2FA em nenhuma conta
+9. `proxy.ts` só verifica "está logado", não verifica perfil por página — nada impede um MORADOR de tentar acessar `/usuarios` ou `/portaria` pela URL (os dados em si continuam protegidos por `condominio_id`, mas a tela não é bloqueada por papel)
+10. Rota `/cadastro` configurada como pública no `proxy.ts`, mas a página não existe — configuração morta, inofensiva mas inconsistente
+
+**Notificações:**
+11. E-mail via Resend usa o domínio sandbox `onboarding@resend.dev` — só entrega de verdade pra caixa do dono da conta Resend, não pra moradores reais. Precisa verificar um domínio próprio pra funcionar em produção de verdade
+
+**Multi-tenant / dados:**
+12. Sem UI para editar/excluir condomínios — só criar e listar
+13. Sem paginação em nenhuma lista (`/api/usuarios`, ocorrências, notificações etc.)
+14. Notificações limitadas a 30 registros fixos, sem "carregar mais"
+15. Todo delete é permanente (hard delete) — nenhuma tabela tem soft-delete ou trilha de auditoria de quem apagou o quê
+16. Reservas não checam conflito de horário sobreposto no banco (só a regra de "até 30 dias de antecedência" é validada)
+
+**IA (Gemini):**
+17. Sem controle de custo/uso — sem cache, sem limite por usuário/dia; pode gerar custo real na conta Google se abusado
+18. IA Mania sugere uma reserva mas não confere automaticamente a regra dos 30 dias nem conflito de horário antes de "confirmar" — só a rota de criação em si valida depois
+
+**Financeiro:**
+19. Sem gateway de pagamento real — PIX/boleto são só exibidos pra copiar, ninguém processa pagamento de fato; marcar "PAGO" é manual
+20. Sem geração automática recorrente de boleto mensal — precisa criar manualmente todo mês, por unidade
+
+**Qualidade / operação:**
+21. Sem testes automatizados (nenhum teste unitário/integração, tudo validado manualmente nas sessões)
+22. Sem sistema formal de migração de banco (tipo Prisma Migrate) — todo `ALTER TABLE` rodado foi um comando `psql` avulso, documentado só em prosa no `CLAUDE.md`
+23. Sem monitoramento/alerta de erro em produção (tipo Sentry)
+24. Aviso de depreciação do `pg`/`sslmode` ainda não tratado
+25. `backend/` (Express) 100% órfão — nunca é buildado, mas ainda ocupa espaço no repositório
+26. `vercel.json` duplicado (na raiz e dentro de `frontend/`) — funciona, mas confunde se alguém mexer no errado
+
+**UX / robustez de frontend:**
+27. Vários `fetch` no frontend com `.catch(() => {})` silencioso — falha de API não avisa o usuário, só fica sem dado
+28. Painel do síndico faz polling do botão de pânico a cada 5s o tempo todo, mesmo em segundo plano — desperdício de requisições
+29. Responsividade mobile completa e acessibilidade (contraste, navegação por teclado, `aria-label`) não verificadas em nenhuma tela

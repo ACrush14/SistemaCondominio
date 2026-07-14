@@ -387,3 +387,25 @@ O usuário pediu explicitamente pra não depender de um perfil `SUPER_ADMIN` à 
 ### O que continua fora do escopo
 
 - Não existe (ainda) uma UI pra um síndico vincular/desvincular outro usuário de condomínios adicionais — hoje isso só é feito via SQL direto (`INSERT INTO usuario_condominios ...`). Se isso virar uma necessidade recorrente, vale criar uma rota/tela de administração pra isso.
+
+---
+
+## Código numérico de 6 dígitos para liberação de visita (2026-07-14)
+
+Depois de tentar testar o QR Code com câmera física real (celular real, site publicado na Vercel), o teste não funcionou de primeira: a câmera pediu permissão mas não iniciou a captura sozinha (precisa clicar em "Start Scanning" depois de escolher a câmera — comportamento padrão da UI do `html5-qrcode`, não é bug), e uma tentativa via upload de uma captura de tela (com barra de status do celular e tudo, não um recorte limpo do QR) retornou "Código inválido". Diante da dificuldade de validar a câmera de forma confiável nessa sessão, o usuário decidiu: em vez de depender só do QR Code, adicionar um **código numérico de 6 dígitos digitável**, mais simples de testar entre aparelhos de verdade — o QR Code continua existindo, mas passa a ser o método secundário.
+
+### O que mudou
+
+1. **`frontend/src/app/api/condominio/visitas/route.ts`**: `gerarCodigo()` agora gera um número de 6 dígitos (`000000`–`999999`, com zero à esquerda) em vez de uma string alfanumérica de 8 caracteres. Como `liberacoes_visita.codigo` tem `UNIQUE CONSTRAINT` e agora só existem 1 milhão de combinações possíveis (bem menos que antes), o `POST` tenta até 5 vezes em caso de colisão (`código 23505` do Postgres) antes de desistir — colisão real é rara pro volume de uso esperado, mas o retry existe pra não quebrar nesse caso raro.
+2. **`frontend/src/app/(dashboard)/area-morador/page.tsx`**: o modal "Gerar QR Code de Visita" agora mostra o código em texto grande (`text-4xl`, espaçado) **acima** da imagem do QR, com a instrução "Informe este número na portaria — mais simples que o QR Code". A imagem do QR também ficou maior (`w-72` em vez de `w-48`) e com mais margem (`width: 400, margin: 3` no `QRCode.toDataURL`) — QR pequeno/sem zona de silêncio é a causa mais comum de câmera não conseguir focar quando o código é lido de uma tela, então essa parte continua sendo melhorada mesmo com o código numérico como plano principal agora.
+3. **`frontend/src/app/(dashboard)/portaria/page.tsx`**: novo card **"Digitar Código de Liberação"**, acima do card da câmera, com um input numérico (só aceita dígitos, máximo 6, `inputMode="numeric"`) e botão "Liberar". Reaproveita a mesma função `validarCodigo()` que o scanner de QR já usava — chama a mesma rota `/api/condominio/visitas/validar`, sem nenhuma lógica nova no backend além da troca do formato do código. O card da câmera continua existindo logo abaixo, renomeado pra "Ou Escanear QR Code" (agora é o caminho alternativo, não o único).
+
+### Testado
+
+- `POST /api/condominio/visitas` gera código de 6 dígitos (ex: `046205`).
+- `POST /api/condominio/visitas/validar` com esse código retorna sucesso e marca `USADO` no Postgres — confirmado via `curl` e direto no banco.
+- Testado na UI de ponta a ponta: gerado o código na Área do Morador (apareceu `084689` em destaque), digitado manualmente no novo campo da Portaria, resultado `"Acesso liberado: Convidado (Apto 301)"` na tela. Dados de teste apagados do Neon depois.
+
+### O que ainda não foi testado
+
+- Câmera física real continua sem confirmação de ponta a ponta — ficou mais difícil de validar nesta sessão (ver acima) e não é mais o caminho principal, mas o código dela não foi removido, só passou a ser secundário. Se for retomar esse teste depois, lembrar de clicar "Start Scanning" após conceder a permissão de câmera (não inicia sozinho), e evitar escanear uma foto/print — testar com o QR exibido ao vivo na tela de outro aparelho.
