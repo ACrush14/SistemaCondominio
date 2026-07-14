@@ -37,7 +37,7 @@ export default function UsuariosPage() {
       if (!resposta.ok) throw new Error("Falha ao carregar usuários");
 
       const dados = await resposta.json();
-      setUsuarios(dados);
+      setUsuarios(Array.isArray(dados) ? dados : dados.registros || dados.usuarios || []);
     } catch (err) {
       setErro("Não foi possível carregar a lista de usuários.");
     } finally {

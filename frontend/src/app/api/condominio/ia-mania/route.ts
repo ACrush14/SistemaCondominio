@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { perguntarGeminiJSON } from "../../../../lib/gemini";
+import { obterCondominioId } from "../../../../lib/tenant";
+import { calcularDiferencaDias, verificarConflitoReserva } from "../../../../lib/store/reservasDb";
 
 interface RespostaMania {
   reserva_intencao: boolean;
@@ -57,6 +59,7 @@ Se for só uma pergunta ou conversa geral (não é pedido de reserva), responda 
 
 export async function POST(req: Request) {
   try {
+    const condominioId = obterCondominioId(req);
     const { mensagem } = await req.json();
     const texto = (mensagem || "").trim();
 
@@ -72,6 +75,47 @@ export async function POST(req: Request) {
       instrucaoSistema(),
       SCHEMA
     );
+
+    if (resultado.reserva_intencao && resultado.dados_reserva) {
+      const { area, data_reserva, horario_inicio, horario_fim } = resultado.dados_reserva;
+
+      // 1. Regra de antecedência (até 30 dias e não ser no passado)
+      const diferencaDias = calcularDiferencaDias(data_reserva);
+
+      if (isNaN(diferencaDias) || diferencaDias < 0) {
+        resultado.reserva_intencao = false;
+        delete resultado.dados_reserva;
+        resultado.resposta_mania = `A data solicitada (${data_reserva}) já passou ou é inválida. Por favor, escolha uma data a partir de hoje (com até 30 dias de antecedência).`;
+        return NextResponse.json(resultado);
+      }
+
+      if (diferencaDias > 30) {
+        resultado.reserva_intencao = false;
+        delete resultado.dados_reserva;
+        resultado.resposta_mania = `Essa data (${data_reserva}) está fora do prazo de 30 dias de antecedência. O agendamento online para ${area} é permitido apenas para até 30 dias a partir de hoje. Para datas mais distantes, fale diretamente com o Síndico (Anderson de Lima).`;
+        return NextResponse.json(resultado);
+      }
+
+      // 2. Conflito de horário no banco de dados
+      const conflito = await verificarConflitoReserva(
+        condominioId,
+        area,
+        data_reserva,
+        horario_inicio || "00:00",
+        horario_fim || "23:59",
+        false
+      );
+
+      if (conflito) {
+        const msgHorario = conflito.dia_inteiro
+          ? "para o dia inteiro"
+          : `das ${conflito.horario_inicio} às ${conflito.horario_fim}`;
+        resultado.reserva_intencao = false;
+        delete resultado.dados_reserva;
+        resultado.resposta_mania = `Já existe uma reserva no(a) ${area} para ${data_reserva} (${msgHorario}), que entra em conflito com o horário solicitado (${horario_inicio} às ${horario_fim}). Que tal escolher outro horário ou outra data?`;
+        return NextResponse.json(resultado);
+      }
+    }
 
     return NextResponse.json(resultado);
   } catch (erro) {

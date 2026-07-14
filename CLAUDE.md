@@ -495,3 +495,56 @@ Criada gestão completa de atualização e remoção de condomínios/prédios na
   - `excluirCondominio(1)` gerando exceção protegendo o prédio principal (`id: 1`).
 - Verificação do compilador TypeScript (`npx tsc --noEmit`) 100% limpa (0 erros).
 - Build estático e de produção (`npm run build`) concluído com sucesso e sem erros (`5.0s`).
+
+---
+
+## Paginação nas demais listas: Usuários, Ocorrências e Reservas (2026-07-14)
+
+Replicado o padrão de paginação introduzido nas notificações (`offset`, `limite`, `pagina`, `contarX()`) para as demais rotas principais de listagem do sistema.
+
+### O que mudou
+
+1. **Novos e atualizados helpers de banco em `frontend/src/lib/store/`**:
+   - `usuariosDb.ts`: funções `listarUsuarios(limite, condominioId, offset)` e `contarUsuarios(condominioId)`.
+   - `ocorrenciasDb.ts`: funções `listarOcorrencias(limite, condominioId, offset, unidade)` e `contarOcorrencias(condominioId, unidade)`.
+   - `reservasDb.ts`: funções `listarReservas(limite, condominioId, offset)` e `contarReservas(condominioId)`, além de encapsular `comHorarioExibicao(r)`.
+2. **Rotas da API (`GET /api/usuarios`, `GET /api/condominio/ocorrencias`, `GET /api/reservas`)**:
+   - Analisam os parâmetros da URL (`limite`, `offset` ou `pagina`/`page`).
+   - Retornam um payload JSON unificado e estruturado: `{ registros, total, offset, limite, paginas }` (além das chaves específicas `usuarios`, `ocorrencias` ou `reservas` para compatibilidade).
+3. **Resiliência nas páginas consumidoras do frontend**:
+   - As páginas que consomem essas rotas (`page.tsx`, `moradores/page.tsx`, `usuarios/page.tsx`, `ocorrencias/page.tsx` e `reservas/page.tsx`) agora verificam se o retorno é um array direto ou um objeto paginado (`Array.isArray(data) ? data : data.registros || data.usuarios || data.ocorrencias || data.reservas || []`), evitando quebras visuais e garantindo compatibilidade reversa total.
+
+### Testado
+
+- Executado teste contra o banco Neon real usando `npx tsx` e chamadas instanciando `new Request(...)` com headers de multi-tenant:
+  - `GET /api/usuarios?limite=2&pagina=1` → retornou 2 registros com `total: 3`, `paginas: 2`, `offset: 0`.
+  - `GET /api/usuarios?limite=2&pagina=2` → retornou 1 registro corretamente com `offset: 2`.
+  - `GET /api/condominio/ocorrencias?limite=3&offset=0` e `GET /api/reservas?limite=5&pagina=1` → ambos retornando estrutura paginada com `total`, `limite` e `paginas`.
+- Verificação do compilador TypeScript (`npx tsc --noEmit`) 100% limpa (0 erros).
+
+---
+
+## Validação de Regras (Antecedência e Conflito de Horário) na IA Mania (2026-07-14)
+
+Implementada intercepção e validação de regras de negócio na rota da IA Mania (`POST /api/condominio/ia-mania`) antes da devolução da resposta ao morador, impedindo que a IA prometa ou confirme agendamentos que seriam recusados na etapa posterior de gravação.
+
+### O que mudou
+
+1. **Helpers de Validação Puras em `reservasDb.ts`**:
+   - `calcularDiferencaDias(dataReserva, dataBase?)`: calcula a diferença exata de dias em relação à data atual (ou `dataBase`), retornando negativo para datas passadas ou `NaN` para datas inválidas.
+   - `verificarConflitoReserva(condominioId, area, dataReserva, horarioInicio, horarioFim, diaInteiro, reservaIdIgnorar?)`: consulta o Postgres em busca de agendamentos no mesmo `condominio_id` e `area` que estejam ativos (`status NOT IN ('CANCELADA', 'CANCELADO', 'REJEITADO', 'REJEITADA')`) e cujos horários se sobreponham ao intervalo solicitado.
+2. **Intercepção na Rota `POST /api/condominio/ia-mania`**:
+   - Quando o Gemini retorna `reserva_intencao = true` acompanhado de `dados_reserva`, o sistema extrai os dados do agendamento solicitado.
+   - Aplica a verificação de prazo: caso `diferencaDias < 0` (passado) ou `diferencaDias > 30` (além da janela permitida), o backend redefine `reserva_intencao = false`, remove os `dados_reserva` (o que evita a exibição do botão de salvar reserva no frontend) e ajusta o `resposta_mania` explicando o prazo regimental de 30 dias.
+   - Aplica a verificação de conflito no banco via `verificarConflitoReserva`: caso identifique sobreposição com reserva existente, redefine `reserva_intencao = false`, remove os `dados_reserva` e avisa amigavelmente o morador, informando o horário que já está ocupado e sugerindo outra escolha.
+
+### Testado
+
+- Executado teste contra o banco Neon real via `npx tsx`:
+  - `verificarConflitoReserva` testado no Salão de Festas para `2026-07-14` das `14:00` às `18:00` → detectado corretamente o conflito com a reserva ID 2 (`08:00` às `22:00`). Testado para `22:00` às `23:00` → retornou `null` (sem conflito).
+  - Chamada real `POST /api/condominio/ia-mania` solicitando reserva no Salão de Festas em `2026-07-14` (horário em conflito) → intercepção acionada e retornada mensagem amigável da IA informando o conflito com a reserva das 08:00 às 22:00.
+  - Chamada real `POST /api/condominio/ia-mania` solicitando data `> 30 dias` (`2026-11-20`) → intercepção acionada informando o limite de 30 dias de antecedência.
+  - Chamada real `POST /api/condominio/ia-mania` solicitando reserva em data válida (`2026-07-15`) sem conflito na Churrasqueira → resposta preservada com `reserva_intencao = true` e os `dados_reserva` intactos para o morador confirmar na UI.
+- Verificação do compilador TypeScript (`npx tsc --noEmit`) 100% limpa (0 erros).
+
+

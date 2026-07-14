@@ -1,41 +1,41 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../lib/store/db";
 import { obterCondominioId } from "../../../lib/tenant";
-
-interface ReservaRow {
-  id: number;
-  area: string;
-  data_reserva: string;
-  horario_inicio: string;
-  horario_fim: string;
-  dia_inteiro: boolean;
-  convidados: number;
-  observacao: string | null;
-  morador: string | null;
-  status: string;
-}
-
-function comHorarioExibicao(r: ReservaRow) {
-  return {
-    ...r,
-    horario: r.dia_inteiro
-      ? `${r.horario_inicio} - Dia Inteiro (até 23:00)`
-      : `${r.horario_inicio} - ${r.horario_fim}`,
-  };
-}
+import { ReservaRow, comHorarioExibicao, listarReservas, contarReservas } from "../../../lib/store/reservasDb";
 
 export async function GET(req: Request) {
-  const condominioId = obterCondominioId(req);
-  const resultado = await pool.query<ReservaRow>(
-    `SELECT id, area, TO_CHAR(data_reserva, 'YYYY-MM-DD') AS data_reserva,
-            horario_inicio, horario_fim, dia_inteiro, convidados, observacao, morador, status
-     FROM reservas
-     WHERE condominio_id = $1
-     ORDER BY data_reserva ASC, id ASC`,
-    [condominioId]
-  );
+  try {
+    const condominioId = obterCondominioId(req);
+    const url = new URL(req.url);
+    const limiteParam = parseInt(url.searchParams.get("limite") || "10", 10);
+    const limite = isNaN(limiteParam) || limiteParam <= 0 ? 10 : Math.min(limiteParam, 100);
 
-  return NextResponse.json(resultado.rows.map(comHorarioExibicao));
+    let offset = 0;
+    if (url.searchParams.has("offset")) {
+      const offsetParam = parseInt(url.searchParams.get("offset") || "0", 10);
+      offset = isNaN(offsetParam) || offsetParam < 0 ? 0 : offsetParam;
+    } else if (url.searchParams.has("pagina") || url.searchParams.has("page")) {
+      const paginaParam = parseInt(url.searchParams.get("pagina") || url.searchParams.get("page") || "1", 10);
+      const pagina = isNaN(paginaParam) || paginaParam < 1 ? 1 : paginaParam;
+      offset = (pagina - 1) * limite;
+    }
+
+    const log = await listarReservas(limite, condominioId, offset);
+    const total = await contarReservas(condominioId);
+
+    return NextResponse.json({
+      reservas: log,
+      registros: log,
+      total,
+      offset,
+      limite,
+      paginas: Math.ceil(total / limite),
+    });
+  } catch (erro: unknown) {
+    console.error("Erro ao listar reservas:", erro);
+    const msg = erro instanceof Error ? erro.message : String(erro);
+    return NextResponse.json({ erro: "Erro ao listar reservas: " + msg }, { status: 500 });
+  }
 }
 
 export async function POST(req: Request) {

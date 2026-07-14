@@ -111,7 +111,7 @@ export default function ReservasPage() {
       const res = await fetch("/api/reservas");
       if (res.ok) {
         const dados = await res.json();
-        setReservas(dados);
+        setReservas(Array.isArray(dados) ? dados : dados.registros || dados.reservas || []);
       }
     } catch (err) {
       console.error("Erro ao buscar reservas:", err);

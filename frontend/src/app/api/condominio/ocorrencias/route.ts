@@ -2,35 +2,47 @@ import { NextResponse } from "next/server";
 import { pool } from "../../../../lib/store/db";
 import { perguntarGemini } from "../../../../lib/gemini";
 import { obterCondominioId } from "../../../../lib/tenant";
+import { listarOcorrencias, contarOcorrencias } from "../../../../lib/store/ocorrenciasDb";
 
 const INSTRUCAO_RESUMO = `Você é o assistente administrativo de um condomínio. Um morador relatou uma ocorrência.
 Escreva um resumo profissional e objetivo em português, em no máximo 2 frases curtas, destacando o problema e uma sugestão de encaminhamento (ex: "requer inspeção do zelador", "notificar unidade responsável").
 Não invente detalhes que não estejam no relato. Responda só com o resumo, sem introdução.`;
 
-const SELECT_BASE = `
-  SELECT id, titulo, local, unidade, morador, categoria, status, resumo_ia,
-         TO_CHAR(criado_em, 'DD/MM/YYYY, HH24:MI') AS data
-  FROM ocorrencias
-`;
-
 export async function GET(req: Request) {
-  const condominioId = obterCondominioId(req);
-  const { searchParams } = new URL(req.url);
-  const unidade = searchParams.get("unidade");
+  try {
+    const condominioId = obterCondominioId(req);
+    const url = new URL(req.url);
+    const unidade = url.searchParams.get("unidade");
 
-  if (unidade) {
-    const resultado = await pool.query(
-      `${SELECT_BASE} WHERE condominio_id = $1 AND unidade = $2 ORDER BY criado_em DESC`,
-      [condominioId, unidade]
-    );
-    return NextResponse.json(resultado.rows);
+    const limiteParam = parseInt(url.searchParams.get("limite") || "10", 10);
+    const limite = isNaN(limiteParam) || limiteParam <= 0 ? 10 : Math.min(limiteParam, 100);
+
+    let offset = 0;
+    if (url.searchParams.has("offset")) {
+      const offsetParam = parseInt(url.searchParams.get("offset") || "0", 10);
+      offset = isNaN(offsetParam) || offsetParam < 0 ? 0 : offsetParam;
+    } else if (url.searchParams.has("pagina") || url.searchParams.has("page")) {
+      const paginaParam = parseInt(url.searchParams.get("pagina") || url.searchParams.get("page") || "1", 10);
+      const pagina = isNaN(paginaParam) || paginaParam < 1 ? 1 : paginaParam;
+      offset = (pagina - 1) * limite;
+    }
+
+    const log = await listarOcorrencias(limite, condominioId, offset, unidade);
+    const total = await contarOcorrencias(condominioId, unidade);
+
+    return NextResponse.json({
+      ocorrencias: log,
+      registros: log,
+      total,
+      offset,
+      limite,
+      paginas: Math.ceil(total / limite),
+    });
+  } catch (erro: unknown) {
+    console.error("Erro ao listar ocorrências:", erro);
+    const msg = erro instanceof Error ? erro.message : String(erro);
+    return NextResponse.json({ erro: "Erro ao listar ocorrências: " + msg }, { status: 500 });
   }
-
-  const resultado = await pool.query(
-    `${SELECT_BASE} WHERE condominio_id = $1 ORDER BY criado_em DESC`,
-    [condominioId]
-  );
-  return NextResponse.json(resultado.rows);
 }
 
 export async function POST(req: Request) {

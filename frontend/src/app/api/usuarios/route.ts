@@ -2,14 +2,41 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { pool } from "../../../lib/store/db";
 import { obterCondominioId } from "../../../lib/tenant";
+import { listarUsuarios, contarUsuarios } from "../../../lib/store/usuariosDb";
 
 export async function GET(req: Request) {
-  const condominioId = obterCondominioId(req);
-  const resultado = await pool.query(
-    "SELECT id, nome, email, perfil, unidade, status FROM usuarios WHERE condominio_id = $1 ORDER BY id ASC",
-    [condominioId]
-  );
-  return NextResponse.json(resultado.rows);
+  try {
+    const condominioId = obterCondominioId(req);
+    const url = new URL(req.url);
+    const limiteParam = parseInt(url.searchParams.get("limite") || "10", 10);
+    const limite = isNaN(limiteParam) || limiteParam <= 0 ? 10 : Math.min(limiteParam, 100);
+
+    let offset = 0;
+    if (url.searchParams.has("offset")) {
+      const offsetParam = parseInt(url.searchParams.get("offset") || "0", 10);
+      offset = isNaN(offsetParam) || offsetParam < 0 ? 0 : offsetParam;
+    } else if (url.searchParams.has("pagina") || url.searchParams.has("page")) {
+      const paginaParam = parseInt(url.searchParams.get("pagina") || url.searchParams.get("page") || "1", 10);
+      const pagina = isNaN(paginaParam) || paginaParam < 1 ? 1 : paginaParam;
+      offset = (pagina - 1) * limite;
+    }
+
+    const log = await listarUsuarios(limite, condominioId, offset);
+    const total = await contarUsuarios(condominioId);
+
+    return NextResponse.json({
+      usuarios: log,
+      registros: log,
+      total,
+      offset,
+      limite,
+      paginas: Math.ceil(total / limite),
+    });
+  } catch (erro: unknown) {
+    console.error("Erro ao listar usuários:", erro);
+    const msg = erro instanceof Error ? erro.message : String(erro);
+    return NextResponse.json({ erro: "Erro ao listar usuários: " + msg }, { status: 500 });
+  }
 }
 
 export async function POST(req: Request) {

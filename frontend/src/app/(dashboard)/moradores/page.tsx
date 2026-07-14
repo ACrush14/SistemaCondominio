@@ -12,7 +12,8 @@ export default function MoradoresPage() {
 
   const buscarMoradores = useCallback(async () => {
     const res = await fetch("/api/usuarios");
-    setMoradores(await res.json());
+    const data = await res.json();
+    setMoradores(Array.isArray(data) ? data : data.registros || data.usuarios || []);
   }, []);
 
   useEffect(() => {

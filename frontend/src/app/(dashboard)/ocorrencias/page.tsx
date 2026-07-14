@@ -43,8 +43,9 @@ export default function OcorrenciasPage() {
     fetch("/api/condominio/ocorrencias")
       .then((res) => res.json())
       .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setOcorrencias(data);
+        const lista = Array.isArray(data) ? data : data.registros || data.ocorrencias || [];
+        if (Array.isArray(lista) && lista.length > 0) {
+          setOcorrencias(lista);
         }
       })
       .catch((err) => {

@@ -73,7 +73,10 @@ export default function PainelSindicoPage() {
   useEffect(() => {
     fetch("/api/condominio/ocorrencias")
       .then((res) => res.json())
-      .then((data) => setOcorrencias(data))
+      .then((data) => {
+        const lista = Array.isArray(data) ? data : data.registros || data.ocorrencias || [];
+        setOcorrencias(lista);
+      })
       .catch((err) => {
         console.error("Erro ao carregar ocorrências:", err);
         setMensagemErro("Não foi possível carregar as ocorrências.");
@@ -81,9 +84,10 @@ export default function PainelSindicoPage() {
 
     fetch("/api/usuarios")
       .then((res) => res.json())
-      .then((data: { perfil: string }[]) => {
-        if (Array.isArray(data)) {
-          setTotalMoradores(data.filter((u) => u.perfil === "MORADOR").length);
+      .then((data: unknown) => {
+        const lista = Array.isArray(data) ? data : (data && typeof data === "object" && ("registros" in data || "usuarios" in data) ? (data as any).registros || (data as any).usuarios : []);
+        if (Array.isArray(lista)) {
+          setTotalMoradores(lista.filter((u: { perfil: string }) => u.perfil === "MORADOR").length);
         }
       })
       .catch((err) => {
