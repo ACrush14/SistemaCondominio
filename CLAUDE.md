@@ -638,6 +638,26 @@ Implementada a instrumentação de nível empresarial e rastreamento de exceçõ
 - TypeScript (`npx tsc --noEmit`) verificado com sucesso sem erros.
 - Build de produção (`npm run build` na pasta `frontend/`) concluído sem erros nem warnings de compilação ou depreciação.
 
+---
+
+## Limpeza de Dívida Técnica: Remoção da Pasta `backend/` Órfã (2026-07-14)
+
+Removido do repositório todo o diretório legado `backend/` (Express na porta 3333), eliminando ruído estrutural, pacotes não utilizados e dívida técnica sem impactar a aplicação ou o build na Vercel.
+
+### O que mudou
+
+1. **Remoção Completa via Git (`git rm -r backend`)**:
+   - Deletada a estrutura legada do Express (`server.js`, `routes/`, `controllers/`, `package.json`), que era 100% órfã desde a adoção do Next.js App Router (`frontend/src/app/api/`) como backend/API definitiva.
+2. **Atualização do `package.json` da Raiz**:
+   - Adicionados os scripts de conveniência no `package.json` do monorepo (`"dev": "cd frontend && npm run dev"`, `"build": "cd frontend && npm run build"`, `"start": "cd frontend && npm run start"`, `"test": "cd frontend && npm run test"`), apontando e orientando exclusivamente para a pasta `frontend/`.
+
+### Testado
+
+- Executado `npm run test` em `frontend/`: 14/14 testes unitários aprovados em 418ms (`Test Files 2 passed, Tests 14 passed`).
+- Verificação de tipagem via `npx tsc --noEmit`: concluída com 0 erros.
+- Build de produção via `npm run build` na pasta `frontend/`: concluído com sucesso e compilação limpa de todas as 34 rotas da aplicação.
+
+
 
 
 
