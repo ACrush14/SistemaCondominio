@@ -1,12 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../../lib/store/db";
 import { obterCondominioId } from "../../../../lib/tenant";
-
-// Código numérico de 6 dígitos: mais fácil de ler em voz alta, mandar por WhatsApp
-// como texto, ou digitar na portaria — sem depender de escanear QR Code.
-function gerarCodigo(): string {
-  return String(Math.floor(Math.random() * 1_000_000)).padStart(6, "0");
-}
+import { gerarCodigoVisita } from "../../../../lib/visitas";
 
 export async function POST(req: Request) {
   const condominioId = obterCondominioId(req);
@@ -16,7 +11,7 @@ export async function POST(req: Request) {
   // Só 1 milhão de combinações possíveis (6 dígitos) — tenta de novo em caso de colisão
   // rara com um código ainda ativo de outro visitante (codigo tem UNIQUE constraint).
   for (let tentativa = 0; tentativa < 5; tentativa++) {
-    const codigo = gerarCodigo();
+    const codigo = gerarCodigoVisita();
     try {
       const resultado = await pool.query(
         `INSERT INTO liberacoes_visita (codigo, nome_visitante, unidade, morador, expira_em, condominio_id)

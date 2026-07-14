@@ -579,5 +579,34 @@ Implementada rotina automatizada (`GET /api/cron/gerar-boletos`) e configuraçã
 - TypeScript limpo (`npx tsc --noEmit` retornando 0 erros).
 - Build de produção (`npm run build` dentro de `frontend/`) concluído com sucesso, com a rota `/api/cron/gerar-boletos` compilada corretamente.
 
+---
+
+## Testes Automatizados de Unidade com Vitest (2026-07-14)
+
+Introduzido o framework de testes automatizados **Vitest** (`vitest` + `@vitest/coverage-v8`) no `frontend/` e criada a primeira suíte de testes de unidade puras focada em regras de negócio críticas, sem acoplamento nem regressão com o compilador do Next.js.
+
+### O que mudou
+
+1. **Configuração e Scripts do Vitest (`frontend/vitest.config.ts` e `package.json`)**:
+   - Criado arquivo isolado `vitest.config.ts` configurado para ambiente `node`, resolução de path aliases (`@/` apontando para `./src`) e carregamento automático das variáveis do `.env.local` usando `loadEnv(mode, __dirname, "")`.
+   - Garantido fallback de teste para `DATABASE_URL` apenas no contexto de execução do `vitest` (`test.env`), prevenindo erros ao importar módulos contendo `pool.query` sem violar a verificação restrita de `DATABASE_URL` da aplicação no runtime real.
+   - Adicionados os scripts `"test": "vitest run"` e `"test:watch": "vitest"` no `package.json`.
+2. **Extração Modular de Lógica Pura (`frontend/src/lib/visitas.ts`)**:
+   - Criado módulo helper com funções puras e 100% testáveis:
+     - `gerarCodigoVisita()`: gera string numérica de exatamente 6 dígitos aleatórios.
+     - `validarFormatoCodigoVisita(codigo)`: verifica com regex `/^\d{6}$/` se o código tem 6 dígitos numéricos, prevenindo entradas incorretas.
+     - `validarStatusECodigoVisita(liberacao, dataAtual)`: valida status (`USADO`, `CANCELADO`) e data de expiração (`expira_em`) retornando mensagens claras e códigos HTTP adequados (`200`, `404`, `409`, `410`).
+   - Integrado `gerarCodigoVisita()` na criação em `frontend/src/app/api/condominio/visitas/route.ts` e `validarFormatoCodigoVisita` + `validarStatusECodigoVisita` na validação em `frontend/src/app/api/condominio/visitas/validar/route.ts`.
+3. **Suítes de Testes Unitários (`frontend/src/tests/unit/`)**:
+   - **`visitas.test.ts` (9 testes)**: testa formato do código de 6 dígitos, unicidade e variabilidade da geração, aceitação/rejeição de strings inválidas (`12345`, `ABCDEF`), validação de data futura e rejeição por expiração, status `USADO` e status `CANCELADO`.
+   - **`reservas.test.ts` (5 testes)**: testa com precisão matemática a função `calcularDiferencaDias` (`reservasDb.ts`), garantindo permissão para o mesmo dia (`0 dias`) e no limite regimental exato de `30 dias`, e recusa categórica para `31 dias`, datas no passado (`-1 dia`) ou strings inválidas (`NaN`).
+
+### Testado
+
+- Executado `npm run test` em `frontend/`: **14/14 testes unitários aprovados em 413ms** (`Test Files 2 passed, Tests 14 passed`).
+- Verificação de tipagem (`npx tsc --noEmit`) concluída sem erros (`0 errors`).
+- Build de produção (`npm run build` na pasta `frontend/`) executado sem erros ou conflitos com o compilador do Next.js.
+
+
 
 

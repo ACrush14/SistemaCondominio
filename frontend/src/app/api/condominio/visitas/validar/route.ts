@@ -1,27 +1,25 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../../../lib/store/db";
 import { obterCondominioId } from "../../../../../lib/tenant";
+import { validarFormatoCodigoVisita, validarStatusECodigoVisita } from "../../../../../lib/visitas";
 
 export async function POST(req: Request) {
   const condominioId = obterCondominioId(req);
   const { codigo } = await req.json();
 
-  const resultado = await pool.query(
-    "SELECT * FROM liberacoes_visita WHERE codigo = $1 AND condominio_id = $2",
-    [(codigo || "").toUpperCase(), condominioId]
-  );
-  const liberacao = resultado.rows[0];
-
-  if (!liberacao) {
+  if (!validarFormatoCodigoVisita(codigo)) {
     return NextResponse.json({ erro: "Código inválido." }, { status: 404 });
   }
 
-  if (liberacao.status === "USADO") {
-    return NextResponse.json({ erro: "Este código já foi utilizado." }, { status: 409 });
-  }
+  const resultado = await pool.query(
+    "SELECT * FROM liberacoes_visita WHERE codigo = $1 AND condominio_id = $2",
+    [codigo.trim(), condominioId]
+  );
+  const liberacao = resultado.rows[0];
 
-  if (new Date(liberacao.expira_em) < new Date()) {
-    return NextResponse.json({ erro: "Este código expirou." }, { status: 410 });
+  const validacao = validarStatusECodigoVisita(liberacao);
+  if (!validacao.valido) {
+    return NextResponse.json({ erro: validacao.erro }, { status: validacao.statusHttp });
   }
 
   await pool.query("UPDATE liberacoes_visita SET status = 'USADO' WHERE id = $1", [
