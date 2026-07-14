@@ -8,6 +8,7 @@ export async function garantirTabelaFinanceiro() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS boletos_financeiro (
       id SERIAL PRIMARY KEY,
+      condominio_id INTEGER DEFAULT 1 NOT NULL,
       unidade VARCHAR(100) NOT NULL,
       competencia VARCHAR(50) NOT NULL,
       valor_num NUMERIC(10,2) NOT NULL,
@@ -18,7 +19,9 @@ export async function garantirTabelaFinanceiro() {
       detalhamento JSONB NOT NULL DEFAULT '[]'::jsonb,
       criado_em TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
+    ALTER TABLE boletos_financeiro ADD COLUMN IF NOT EXISTS condominio_id INTEGER DEFAULT 1 NOT NULL;
   `);
+
 
   // Atualiza para VENCIDO caso a data de vencimento seja anterior a hoje e o status ainda seja PENDENTE
   await pool.query(`

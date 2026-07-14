@@ -547,4 +547,37 @@ Implementada intercepção e validação de regras de negócio na rota da IA Man
   - Chamada real `POST /api/condominio/ia-mania` solicitando reserva em data válida (`2026-07-15`) sem conflito na Churrasqueira → resposta preservada com `reserva_intencao = true` e os `dados_reserva` intactos para o morador confirmar na UI.
 - Verificação do compilador TypeScript (`npx tsc --noEmit`) 100% limpa (0 erros).
 
+---
+
+## Geração Automática Recorrente de Boletos + Vercel Cron (2026-07-14)
+
+Implementada rotina automatizada (`GET /api/cron/gerar-boletos`) e configuração do Vercel Cron para acionar mensalmente (dia 1º às 08h UTC) a geração automática de segundas vias de boletos/taxas condominiais para todas as unidades ativas.
+
+### O que mudou
+
+1. **Rota Protegida de Cron (`frontend/src/app/api/cron/gerar-boletos/route.ts`)**:
+   - Protegida rigorosamente pelo secret da variável `CRON_SECRET` via verificação do header `Authorization: Bearer <process.env.CRON_SECRET>` (sem fallbacks inseguros).
+   - Busca todos os condomínios cadastrados no sistema (`condominios`).
+   - Para cada condomínio, identifica todas as unidades distintas de moradores ativos (`SELECT DISTINCT unidade, condominio_id, MIN(id) as usuario_id FROM usuarios WHERE perfil = 'MORADOR' AND status = 'ATIVO' AND unidade IS NOT NULL AND unidade != '' GROUP BY unidade, condominio_id`).
+   - Garante idempotência: antes de inserir, consulta `boletos_financeiro` para conferir se já foi gerado um boleto para a competência atual (`competencia = 'Julho/2026'` ou mês/ano de `criado_em`).
+   - Para unidades sem boleto no mês atual, insere registro com `valor_num = 850.00`, data de vencimento no dia 10, status `PENDENTE`, e gera código de barras e código PIX Copia e Cola com sufixo único baseado em `condominio_id` e `usuario_id`.
+   - Retorna sumário JSON: `{ sucesso: true, processados, criados, jaExistiam }`.
+2. **Atualização Multi-Tenant em `financeiroDb.ts`**:
+   - Adicionada coluna `condominio_id INTEGER DEFAULT 1 NOT NULL` no `CREATE TABLE` e verificado via `ALTER TABLE ADD COLUMN IF NOT EXISTS` em `garantirTabelaFinanceiro()`, assegurando isolamento multi-tenant de boletos entre condomínios.
+3. **Liberação no Proxy (`proxy.ts`)**:
+   - Adicionado prefixo `/api/cron` nas rotas liberadas do `proxy.ts`, garantindo que a requisição automatizada da Vercel (que não usa cookie/JWT de sessão) chegue ao endpoint para ser validada pelo seu próprio `CRON_SECRET`.
+4. **Configuração da Vercel (`frontend/vercel.json`)**:
+   - Adicionada propriedade `"crons": [{ "path": "/api/cron/gerar-boletos", "schedule": "0 8 1 * *" }]`.
+
+### Testado
+
+- Verificado localmente no banco real Neon rodando massa de testes (`test-cron.ts` com `npx tsx`):
+  - **Sem variável `CRON_SECRET`:** Retorna `500` com erro imediato e claro.
+  - **Com header ausente/incorreto (`Bearer senha_errada`):** Retorna `401 Não autorizado`.
+  - **Com header correto (1ª rodada em unidades mistas - uma com boleto e outra sem):** Retornou status `200` com `{ sucesso: true, processados: 2, criados: 1, jaExistiam: 1 }`, inserindo corretamente no Postgres o boleto da unidade faltante.
+  - **Com header correto (2ª rodada consecutiva - teste de idempotência):** Retornou status `200` com `{ sucesso: true, processados: 2, criados: 0, jaExistiam: 2 }`, não gerando nenhuma duplicidade.
+- TypeScript limpo (`npx tsc --noEmit` retornando 0 erros).
+- Build de produção (`npm run build` dentro de `frontend/`) concluído com sucesso, com a rota `/api/cron/gerar-boletos` compilada corretamente.
+
+
 

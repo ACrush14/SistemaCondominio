@@ -94,7 +94,7 @@ Lista numerada pra você analisar item a item e decidir o que vale a pena. Os it
 
 **Financeiro:**
 19. Sem gateway de pagamento real — PIX/boleto são só exibidos pra copiar, ninguém processa pagamento de fato; marcar "PAGO" é manual
-20. Sem geração automática recorrente de boleto mensal — precisa criar manualmente todo mês, por unidade
+20. ~~Sem geração automática recorrente de boleto mensal — precisa criar manualmente todo mês, por unidade~~ — RESOLVIDO (2026-07-14): Criado o endpoint de rotina `GET /api/cron/gerar-boletos` no frontend e configurado o `vercel.json` (`schedule: "0 8 1 * *"`, para o dia 1º de cada mês às 08:00 UTC). A rota é rigorosamente protegida por `CRON_SECRET` (`Authorization: Bearer <secret>`), sem fallback inseguro para `process.env.CRON_SECRET`, e liberada no `proxy.ts`. A rotina varre todos os condomínios e suas unidades com moradores ativos (`perfil = 'MORADOR' AND status = 'ATIVO' AND unidade IS NOT NULL AND unidade != ''`), verifica se já existe boleto gerado para a competência/mês atual em `boletos_financeiro`, e gera automaticamente boletos recorrentes (`status = 'PENDENTE'`, vencimento no dia 10 do mês, valor padrão R$ 850,00 com código de barras único) com idempotência total. Testado de ponta a ponta com massa no banco real (rejeitando sem segredo/segredo errado com 500/401 e executando com 200).
 
 **Qualidade / operação:**
 21. Sem testes automatizados (nenhum teste unitário/integração, tudo validado manualmente nas sessões)

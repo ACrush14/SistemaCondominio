@@ -7,10 +7,11 @@ const CHAVE_SECRETA = process.env.JWT_SECRET!;
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Rotas públicas (login, arquivos estáticos, PWA manifest/ícones)
+  // Rotas públicas e de cron (login, arquivos estáticos, cron jobs, PWA manifest/ícones)
   if (
     pathname.startsWith("/api/auth/login") ||
     pathname.startsWith("/api/auth/cadastro") ||
+    pathname.startsWith("/api/cron") ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/cadastro") ||
     pathname.startsWith("/_next") ||

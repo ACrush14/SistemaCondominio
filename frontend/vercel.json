@@ -1,5 +1,11 @@
 {
   "installCommand": "npm install",
   "buildCommand": "npm run build",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "crons": [
+    {
+      "path": "/api/cron/gerar-boletos",
+      "schedule": "0 8 1 * *"
+    }
+  ]
 }
