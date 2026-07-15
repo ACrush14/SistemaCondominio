@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../../lib/store/db";
 import { perguntarGemini } from "../../../../lib/gemini";
-import { obterCondominioId } from "../../../../lib/tenant";
+import { obterCondominioId, obterUsuarioId } from "../../../../lib/tenant";
+import { registrarUsoIA, LIMITE_IA_DIARIO } from "../../../../lib/store/iaUsoDb";
 
 async function montarContexto(condominioId: number): Promise<string> {
   const [ocorrencias, panico, encomendas] = await Promise.all([
@@ -76,6 +77,14 @@ export async function POST(req: Request) {
     const texto = (pergunta || "").trim();
     if (!texto) {
       return NextResponse.json({ erro: "A pergunta é obrigatória." }, { status: 400 });
+    }
+
+    const uso = await registrarUsoIA(obterUsuarioId(req));
+    if (!uso.permitido) {
+      return NextResponse.json(
+        { resposta_ia: `Você atingiu o limite diário de ${LIMITE_IA_DIARIO} perguntas para a IA. Tente novamente amanhã.` },
+        { status: 200 }
+      );
     }
 
     const contexto = await montarContexto(condominioId);

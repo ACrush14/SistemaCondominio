@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { perguntarGeminiJSON } from "../../../../lib/gemini";
-import { obterCondominioId } from "../../../../lib/tenant";
+import { obterCondominioId, obterUsuarioId } from "../../../../lib/tenant";
 import { calcularDiferencaDias, verificarConflitoReserva } from "../../../../lib/store/reservasDb";
+import { registrarUsoIA, LIMITE_IA_DIARIO } from "../../../../lib/store/iaUsoDb";
 
 interface RespostaMania {
   reserva_intencao: boolean;
@@ -66,6 +67,14 @@ export async function POST(req: Request) {
     if (!texto) {
       return NextResponse.json({
         resposta_mania: "Olá! Sou a IA Mania. Como posso te ajudar com seu condomínio hoje?",
+        reserva_intencao: false,
+      });
+    }
+
+    const uso = await registrarUsoIA(obterUsuarioId(req));
+    if (!uso.permitido) {
+      return NextResponse.json({
+        resposta_mania: `Você atingiu o limite diário de ${LIMITE_IA_DIARIO} perguntas para a IA Mania. Tente novamente amanhã, ou fale direto com o síndico/porteiro.`,
         reserva_intencao: false,
       });
     }

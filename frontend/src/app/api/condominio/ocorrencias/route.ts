@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../../lib/store/db";
 import { perguntarGemini } from "../../../../lib/gemini";
-import { obterCondominioId } from "../../../../lib/tenant";
+import { obterCondominioId, obterUsuarioId } from "../../../../lib/tenant";
 import { listarOcorrencias, contarOcorrencias } from "../../../../lib/store/ocorrenciasDb";
+import { registrarUsoIA } from "../../../../lib/store/iaUsoDb";
 
 const INSTRUCAO_RESUMO = `Você é o assistente administrativo de um condomínio. Um morador relatou uma ocorrência.
 Escreva um resumo profissional e objetivo em português, em no máximo 2 frases curtas, destacando o problema e uma sugestão de encaminhamento (ex: "requer inspeção do zelador", "notificar unidade responsável").
@@ -52,11 +53,18 @@ export async function POST(req: Request) {
 
     let resumo = "Ocorrência registrada no sistema e encaminhada para análise do Síndico.";
     if (body.descricao) {
-      try {
-        resumo = await perguntarGemini(body.descricao, INSTRUCAO_RESUMO);
-      } catch (erroGemini) {
-        console.error("Erro ao gerar resumo com Gemini:", erroGemini);
+      const uso = await registrarUsoIA(obterUsuarioId(req));
+      if (!uso.permitido) {
+        // Limite diário de IA atingido — não bloqueia o cadastro da ocorrência,
+        // só deixa de gerar o resumo e usa o texto original do morador.
         resumo = body.descricao;
+      } else {
+        try {
+          resumo = await perguntarGemini(body.descricao, INSTRUCAO_RESUMO);
+        } catch (erroGemini) {
+          console.error("Erro ao gerar resumo com Gemini:", erroGemini);
+          resumo = body.descricao;
+        }
       }
     }
 

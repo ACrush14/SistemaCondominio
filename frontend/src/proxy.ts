@@ -41,6 +41,7 @@ export function proxy(req: NextRequest) {
 
   try {
     const payload = jwt.verify(token, CHAVE_SECRETA) as {
+      id?: number;
       condominio_id?: number;
       condominios?: number[];
     };
@@ -60,6 +61,9 @@ export function proxy(req: NextRequest) {
     // Sempre sobrescreve com o valor verificado do token — nunca confia num header vindo do cliente.
     const headers = new Headers(req.headers);
     headers.set("x-condominio-id", String(condominioEfetivo));
+    if (payload.id) {
+      headers.set("x-usuario-id", String(payload.id));
+    }
 
     return NextResponse.next({ request: { headers } });
   } catch (_erro) {

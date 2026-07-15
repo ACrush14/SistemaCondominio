@@ -854,6 +854,29 @@ As Tarefas 9 (WhatsApp/Twilio) e 10 (Vínculos SaaS) já foram auditadas nas se�
 - Só MORADOR pode se auto-cadastrar. Criar conta de SINDICO ou PORTEIRO continua exigindo um síndico já logado — abrir isso pro público seria a mesma classe de falha da vulnerabilidade de escalonamento de privilégio já documentada neste arquivo.
 - Não há confirmação de e-mail nem aprovação do síndico antes da conta ficar ativa — a conta nasce utilizável imediatamente após o cadastro. Se isso virar um problema (spam de contas falsas, morador de unidade errada), vale revisitar.
 
+---
+
+## Limite diário de uso da IA (Gemini) — 10 chamadas/usuário/dia (2026-07-15)
+
+Pedido explícito do usuário: um limite "bem folgado" (ele sugeriu 5-10/dia) só pra evitar estouro de cota paga na conta do Google, não uma trava de segurança. Compartilhado entre os 3 pontos de IA (resumo de ocorrências, IA Mania, Assistente Executivo do Síndico) — é um único contador por usuário por dia, não um limite separado por funcionalidade.
+
+### O que mudou
+
+1. **Tabela nova `ia_uso_diario`** (`frontend/src/lib/store/iaUsoDb.ts`): chave composta `(usuario_id, dia)`, coluna `contagem`. Função `registrarUsoIA(usuarioId)` faz um `INSERT ... ON CONFLICT (usuario_id, dia) DO UPDATE SET contagem = contagem + 1 RETURNING contagem` — atômico (sem race condition entre checar e incrementar), e se a contagem retornada passar de `LIMITE_IA_DIARIO` (10), a chamada é bloqueada. Se o usuário não puder ser identificado (header ausente), a função falha aberta (permite a chamada) — não é um controle de segurança, então não faz sentido travar o recurso inteiro por causa de um problema de identificação.
+2. **`frontend/src/proxy.ts` agora também propaga `x-usuario-id`**, no mesmo padrão já usado pra `x-condominio-id`: o JWT já carregava `id` desde sempre (usado no login), só nunca tinha sido repassado como header pras rotas. Sempre o valor verificado do token, nunca confia em nada vindo do cliente.
+3. **`frontend/src/lib/tenant.ts`**: nova função `obterUsuarioId(req)`, espelhando `obterCondominioId(req)`.
+4. **Aplicado nos 3 pontos de IA:**
+   - `POST /api/condominio/ia-mania`: se o limite bateu, retorna `resposta_mania` explicando o limite (sem chamar o Gemini), com `reserva_intencao: false` — resposta normal (200), não um erro, já que o chatbot (`ManiaChatbot.tsx`) nem checa `res.ok`.
+   - `POST /api/condominio/ia-sindico`: mesma ideia, retorna `resposta_ia` com a mensagem de limite, status 200 (a UI do síndico já sabe exibir qualquer `resposta_ia` recebida).
+   - `POST /api/condominio/ocorrencias` (resumo automático): se o limite bateu, **não bloqueia o cadastro da ocorrência** — só pula a chamada ao Gemini e usa o texto original do morador como resumo, reaproveitando o mesmo caminho de fallback que já existia pra quando o Gemini falha por qualquer outro motivo.
+
+### Testado
+
+- Login real, 11 chamadas seguidas em `POST /api/condominio/ia-mania`: as 10 primeiras responderam normalmente (Gemini real), a 11ª retornou "Você atingiu o limite diário de 10 perguntas para a IA Mania. Tente novamente amanhã...".
+- Confirmado que o contador é **compartilhado**: com o limite do dia já esgotado pela IA Mania, `POST /api/condominio/ia-sindico` bloqueou imediatamente na primeira chamada, e `POST /api/condominio/ocorrencias` com `descricao` preenchida criou a ocorrência normalmente (sem erro), mas com `resumo_ia` igual ao texto original (sem chamar o Gemini).
+- `npx tsc --noEmit`, `npm run test` (14/14) e `npm run build` confirmados limpos.
+- Dados de teste (ocorrência de teste e a linha de `ia_uso_diario` do dia) apagados do Neon depois.
+
 
 
 
