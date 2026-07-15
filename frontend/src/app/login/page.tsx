@@ -102,6 +102,12 @@ export default function LoginPage() {
           </button>
         </form>
 
+        <div className="mt-5 pt-5 border-t border-neutral-light text-center">
+          <a href="/cadastro" className="text-sm text-primary font-semibold hover:underline">
+            Ainda não tem conta? Cadastre-se
+          </a>
+        </div>
+
         {ehDesenvolvimento && (
           <div className="mt-5 pt-5 border-t border-neutral-light">
             <p className="text-xs text-neutral-dark/60 text-center mb-2">

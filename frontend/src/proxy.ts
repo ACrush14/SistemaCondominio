@@ -11,6 +11,7 @@ export function proxy(req: NextRequest) {
   if (
     pathname.startsWith("/api/auth/login") ||
     pathname.startsWith("/api/auth/cadastro") ||
+    pathname.startsWith("/api/condominios/publico") ||
     pathname.startsWith("/api/cron") ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/cadastro") ||

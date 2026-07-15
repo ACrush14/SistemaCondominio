@@ -60,6 +60,14 @@ export async function listarCondominios() {
   return res.rows;
 }
 
+// Versão enxuta pra rota pública de cadastro (sem sessão) — só o necessário pra
+// escolher o prédio num formulário, sem vazar CNPJ/endereço pra quem não está logado.
+export async function listarCondominiosPublico() {
+  await garantirTabelaCondominios();
+  const res = await pool.query("SELECT id, nome FROM condominios ORDER BY nome ASC");
+  return res.rows;
+}
+
 export async function atualizarCondominio(
   id: number,
   dados: {
