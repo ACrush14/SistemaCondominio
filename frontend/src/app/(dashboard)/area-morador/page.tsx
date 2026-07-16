@@ -66,7 +66,8 @@ export default function AreaMoradorPage() {
   const [boletos, setBoletos] = useState<BoletoFinanceiro[]>([]);
   const [boletoSelecionado, setBoletoSelecionado] = useState<BoletoFinanceiro | null>(null);
   const [copiadoTipo, setCopiadoTipo] = useState<"BARRAS" | "PIX" | null>(null);
-  const [pagandoId, setPagandoId] = useState<number | null>(null);
+  const [pixQrDataUrl, setPixQrDataUrl] = useState<string | null>(null);
+  const [verificandoPagamento, setVerificandoPagamento] = useState(false);
 
   const buscarBoletos = useCallback(async () => {
     try {
@@ -74,6 +75,7 @@ export default function AreaMoradorPage() {
       if (res.ok) {
         const dados = await res.json();
         setBoletos(dados);
+        return dados as BoletoFinanceiro[];
       } else {
         setMensagemErro("Não foi possível carregar os boletos financeiros.");
       }
@@ -81,11 +83,45 @@ export default function AreaMoradorPage() {
       console.error("Erro ao carregar boletos:", err);
       setMensagemErro("Falha na conexão ao buscar boletos.");
     }
+    return null;
   }, []);
 
   useEffect(() => {
     buscarBoletos();
   }, [buscarBoletos]);
+
+  // Gera a imagem do QR Code direto no navegador a partir do código copia-e-cola real
+  // (o mesmo padrão já usado pro QR de liberação de visita) — não depende do Mercado
+  // Pago mandar uma imagem pronta, o PIX copia-e-cola em si já é o conteúdo do QR.
+  useEffect(() => {
+    if (boletoSelecionado?.pix_copia_cola) {
+      QRCode.toDataURL(boletoSelecionado.pix_copia_cola, { width: 300, margin: 2 })
+        .then(setPixQrDataUrl)
+        .catch(() => setPixQrDataUrl(null));
+    } else {
+      setPixQrDataUrl(null);
+    }
+  }, [boletoSelecionado]);
+
+  const verificarPagamento = async () => {
+    if (!boletoSelecionado) return;
+    setVerificandoPagamento(true);
+    try {
+      const dados = await buscarBoletos();
+      const atualizado = dados?.find((b) => b.id === boletoSelecionado.id);
+      if (atualizado) {
+        setBoletoSelecionado(atualizado);
+        setMensagemSucesso(
+          atualizado.status === "PAGO"
+            ? "Pagamento confirmado! 🎉"
+            : "Ainda não identificamos o pagamento — o PIX pode levar alguns segundos para compensar."
+        );
+        setTimeout(() => setMensagemSucesso(""), 4000);
+      }
+    } finally {
+      setVerificandoPagamento(false);
+    }
+  };
 
   const copiarTexto = async (texto: string, tipo: "BARRAS" | "PIX") => {
     try {
@@ -99,32 +135,6 @@ export default function AreaMoradorPage() {
     } catch (err) {
       console.error("Erro ao copiar texto:", err);
       setMensagemErro("Não foi possível copiar o texto automaticamente.");
-    }
-  };
-
-  const simularPagamento = async (id: number) => {
-    setPagandoId(id);
-    try {
-      const res = await fetch(`/api/condominio/financeiro/${id}/pagar`, {
-        method: "PATCH",
-      });
-      if (res.ok) {
-        const dados = await res.json();
-        setBoletos(dados);
-        if (boletoSelecionado && boletoSelecionado.id === id) {
-          const atualizado = dados.find((b: BoletoFinanceiro) => b.id === id);
-          if (atualizado) setBoletoSelecionado(atualizado);
-        }
-        setMensagemSucesso("Pagamento processado com sucesso!");
-        setTimeout(() => setMensagemSucesso(""), 4000);
-      } else {
-        setMensagemErro("Falha ao processar pagamento do boleto.");
-      }
-    } catch (err) {
-      console.error("Erro no pagamento:", err);
-      setMensagemErro("Erro de rede ao processar pagamento.");
-    } finally {
-      setPagandoId(null);
     }
   };
 
@@ -411,16 +421,6 @@ export default function AreaMoradorPage() {
                       >
                         📄 Emitir 2ª Via / PIX
                       </button>
-
-                      {b.status !== "PAGO" && (
-                        <button
-                          onClick={() => simularPagamento(b.id)}
-                          disabled={pagandoId === b.id}
-                          className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all shadow-sm cursor-pointer"
-                        >
-                          {pagandoId === b.id ? "..." : "✓ Simular Baixa"}
-                        </button>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -606,19 +606,34 @@ export default function AreaMoradorPage() {
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider">
                 Pagamento Instantâneo PIX (Copia e Cola)
               </label>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <input
-                  readOnly
-                  value={boletoSelecionado.pix_copia_cola}
-                  className="bg-gray-50 border border-gray-200 p-3 rounded-xl w-full font-mono text-xs text-gray-500 truncate"
-                />
-                <button
-                  onClick={() => copiarTexto(boletoSelecionado.pix_copia_cola, "PIX")}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-3 rounded-xl transition-all shrink-0 cursor-pointer"
-                >
-                  {copiadoTipo === "PIX" ? "✓ Copiado!" : "⚡ Copiar PIX"}
-                </button>
-              </div>
+              {boletoSelecionado.pix_copia_cola ? (
+                <>
+                  {pixQrDataUrl && (
+                    <img
+                      src={pixQrDataUrl}
+                      alt="QR Code PIX"
+                      className="mx-auto w-48 h-48 border border-gray-200 rounded-2xl p-2"
+                    />
+                  )}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      readOnly
+                      value={boletoSelecionado.pix_copia_cola}
+                      className="bg-gray-50 border border-gray-200 p-3 rounded-xl w-full font-mono text-xs text-gray-500 truncate"
+                    />
+                    <button
+                      onClick={() => copiarTexto(boletoSelecionado.pix_copia_cola, "PIX")}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-3 rounded-xl transition-all shrink-0 cursor-pointer"
+                    >
+                      {copiadoTipo === "PIX" ? "✓ Copiado!" : "⚡ Copiar PIX"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl text-xs font-medium">
+                  ⚠️ PIX indisponível para este boleto no momento. Fale com o síndico para gerar a cobrança.
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col sm:flex-row justify-between gap-3 pt-4 border-t border-gray-100">
@@ -631,14 +646,13 @@ export default function AreaMoradorPage() {
               </button>
 
               <div className="flex gap-2">
-                {boletoSelecionado.status !== "PAGO" && (
+                {boletoSelecionado.status !== "PAGO" && boletoSelecionado.pix_copia_cola && (
                   <button
-                    onClick={() => {
-                      simularPagamento(boletoSelecionado.id);
-                    }}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-3 rounded-xl transition-all shadow-sm cursor-pointer"
+                    onClick={verificarPagamento}
+                    disabled={verificandoPagamento}
+                    className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs px-5 py-3 rounded-xl transition-all shadow-sm cursor-pointer"
                   >
-                    ✓ Confirmar Pagamento
+                    {verificandoPagamento ? "Verificando..." : "🔄 Verificar Pagamento"}
                   </button>
                 )}
                 <button

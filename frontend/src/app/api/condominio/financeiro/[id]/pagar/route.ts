@@ -1,13 +1,24 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../../../../lib/store/db";
 import { listarBoletos, garantirTabelaFinanceiro } from "../../../../../../lib/store/financeiroDb";
-import { obterCondominioId } from "../../../../../../lib/tenant";
+import { obterCondominioId, obterPerfil } from "../../../../../../lib/tenant";
 
+// Marcação manual de pagamento — reservada ao síndico (ex: morador pagou por fora,
+// via depósito bancário). Não é mais um botão de autoatendimento do morador: com o PIX
+// real via Mercado Pago, a baixa automática correta acontece pelo webhook
+// (POST /api/webhooks/mercadopago), não por um clique confiando na palavra do pagador.
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (obterPerfil(req) !== "SINDICO") {
+      return NextResponse.json(
+        { erro: "Só o síndico pode marcar um boleto como pago manualmente." },
+        { status: 403 }
+      );
+    }
+
     await garantirTabelaFinanceiro();
     const condominioId = obterCondominioId(req);
     const { id } = await params;

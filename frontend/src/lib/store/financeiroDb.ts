@@ -1,4 +1,5 @@
 import { pool } from "./db";
+import { criarCobrancaPix } from "../mercadopago";
 
 let tabelaVerificada = false;
 
@@ -20,6 +21,7 @@ export async function garantirTabelaFinanceiro() {
       criado_em TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
     ALTER TABLE boletos_financeiro ADD COLUMN IF NOT EXISTS condominio_id INTEGER DEFAULT 1 NOT NULL;
+    ALTER TABLE boletos_financeiro ADD COLUMN IF NOT EXISTS mercadopago_order_id VARCHAR(64);
   `);
 
 
@@ -124,4 +126,47 @@ export async function listarBoletos(unidadeFiltro?: string, condominioId = 1) {
 
   const res = await pool.query(query, params);
   return res.rows;
+}
+
+// Gera uma cobrança PIX real no Mercado Pago pro boleto e grava o código copia-e-cola +
+// o id do pedido (usado depois pelo webhook pra achar o boleto certo). Se o gateway não
+// estiver configurado (sem MERCADOPAGO_ACCESS_TOKEN), não inventa um PIX falso — deixa o
+// campo vazio e quem chamou decide como avisar o usuário disso.
+export async function gerarPixParaBoleto(
+  boletoId: number,
+  valor: number,
+  emailPagador: string
+): Promise<{ pixCopiaCola: string | null; erro?: string }> {
+  if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
+    return { pixCopiaCola: null, erro: "Gateway de pagamento (Mercado Pago) não configurado." };
+  }
+
+  try {
+    const cobranca = await criarCobrancaPix({
+      valor,
+      referenciaExterna: `boleto-${boletoId}`,
+      emailPagador,
+    });
+
+    await pool.query(
+      "UPDATE boletos_financeiro SET pix_copia_cola = $1, mercadopago_order_id = $2 WHERE id = $3",
+      [cobranca.pixCopiaCola, cobranca.orderId, boletoId]
+    );
+
+    return { pixCopiaCola: cobranca.pixCopiaCola };
+  } catch (erro: unknown) {
+    const msg = erro instanceof Error ? erro.message : String(erro);
+    console.error(`Erro ao gerar PIX pro boleto ${boletoId}:`, msg);
+    return { pixCopiaCola: null, erro: msg };
+  }
+}
+
+// Usado pelo webhook do Mercado Pago — marca como PAGO o boleto vinculado ao pedido
+// confirmado, sem depender de condominio_id (a busca já é pelo id único do pedido).
+export async function marcarBoletoPagoPorOrderId(orderId: string): Promise<number | null> {
+  const res = await pool.query(
+    "UPDATE boletos_financeiro SET status = 'PAGO' WHERE mercadopago_order_id = $1 AND status != 'PAGO' RETURNING id",
+    [orderId]
+  );
+  return res.rows[0]?.id ?? null;
 }

@@ -42,6 +42,7 @@ export function proxy(req: NextRequest) {
     pathname.startsWith("/api/auth/redefinir-senha") ||
     pathname.startsWith("/api/condominios/publico") ||
     pathname.startsWith("/api/cron") ||
+    pathname.startsWith("/api/webhooks/mercadopago") ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/cadastro") ||
     pathname.startsWith("/esqueci-senha") ||
@@ -104,6 +105,9 @@ export function proxy(req: NextRequest) {
     headers.set("x-condominio-id", String(condominioEfetivo));
     if (payload.id) {
       headers.set("x-usuario-id", String(payload.id));
+    }
+    if (payload.perfil) {
+      headers.set("x-perfil", payload.perfil);
     }
 
     return NextResponse.next({ request: { headers } });

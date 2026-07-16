@@ -12,3 +12,9 @@ export function obterUsuarioId(req: Request): number | null {
   const n = valor ? parseInt(valor, 10) : NaN;
   return isNaN(n) ? null : n;
 }
+
+// Mesmo padrão dos headers acima — o proxy.ts já verificou o JWT e sempre sobrescreve
+// este valor, nunca confia em nada vindo direto do cliente.
+export function obterPerfil(req: Request): string | null {
+  return req.headers.get("x-perfil");
+}

@@ -971,8 +971,86 @@ Criadas contas reais de teste (`PORTEIRO` e `MORADOR`, apagadas do Neon depois) 
 - As APIs específicas da portaria (`/api/condominio/panico`, `/api/condominio/livro-turno`, `/api/condominio/visitas`) **não** foram restritas por perfil — só a página `/portaria` e o par `/usuarios`+`/api/usuarios`. Hoje, tecnicamente, um `MORADOR` ainda consegue chamar essas rotas de API diretamente (não pela tela, que já está bloqueada) sabendo o path exato. Não é o mesmo nível de risco do buraco do `/api/usuarios` (não permite criar conta nem vazar credencial), mas vale considerar numa passada futura se isso importar.
 - `login/page.tsx` continua mandando `PORTEIRO` pra `/reservas` depois do login (só `MORADOR` tem destino especial ali) — não é um bug introduzido por essa mudança, é o comportamento que já existia; `/reservas` continua acessível a `PORTEIRO`, então não quebra nada, só não é o destino "ideal". Não alterado aqui pra manter o escopo restrito ao que foi pedido.
 
+---
 
+## Sistema formal de migração de banco: `node-pg-migrate` (2026-07-16)
 
+Até aqui, todo `CREATE TABLE`/`ALTER TABLE` era ou (a) rodado manualmente via `psql`/`npx tsx` avulso e documentado só em prosa neste arquivo, ou (b) uma função `garantirTabelaX()` idempotente espalhada em `frontend/src/lib/store/*.ts`, chamada sob demanda pela própria rota — nenhum histórico versionado do schema, nenhum jeito de saber "o que já rodou" além de ler o Postgres direto. Fechava o último item pendente da lista de demandas ("Qualidade/operação").
 
+### Por que `node-pg-migrate` e não Prisma Migrate
 
+O projeto inteiro usa `pg.Pool` puro (`frontend/src/lib/store/db.ts`) — não tem ORM em lugar nenhum, todas as queries são SQL cru. Adotar o Prisma Migrate exigiria adotar o Prisma como camada de acesso a dados no projeto todo, uma reescrita bem maior que não se justifica hoje. O `node-pg-migrate` trabalha em cima de arquivos `.sql` puros com blocos `-- Up Migration` / `-- Down Migration`, mantendo uma tabela própria de controle (`pgmigrations`: `id`, `name`, `run_on`) — não briga com a arquitetura existente.
+
+### Como foi feito o "baseline" (adotar migração numa base que já existe)
+
+O detalhe mais delicado dessa tarefa: o banco em produção (Neon) já tinha as 17 tabelas reais, criadas ao longo de várias sessões. Rodar uma migração normal de `CREATE TABLE` contra um banco que já tem essas tabelas quebraria (`relation already exists`). A prática padrão pra "adotar" um sistema de migração numa base existente é:
+
+1. **Tirar um snapshot real e fiel do schema de produção** via `pg_dump --schema-only --no-owner --no-privileges --no-comments` direto contra a `DATABASE_URL` do Neon — não reconstruí o schema a olho a partir do código, porque o próprio motivo desta tarefa é que `ALTER TABLE`s avulsos via `psql` podem ter desviado do que as funções `garantirTabelaX()` no código descrevem. O `pg_dump` é a fonte da verdade real, não o código.
+2. Esse dump (17 `CREATE TABLE`, sequences, `PRIMARY KEY`, `UNIQUE`, `FOREIGN KEY` — tudo que existe de verdade hoje) virou a migração `frontend/migrations/1784206415955_baseline-schema.sql`, com a seção `-- Down Migration` correspondente (`DROP TABLE ... CASCADE` de todas as 17 tabelas).
+3. Aplicada com **`node-pg-migrate up --fake`** — esse flag registra a migração como "já aplicada" na tabela `pgmigrations` **sem executar o SQL de verdade**. Como as tabelas já existiam de fato, isso evita tentar recriá-las (o que quebraria) e ao mesmo tempo estabelece o ponto de partida versionado.
+4. A partir de agora, qualquer mudança de schema nova (nova tabela, nova coluna) deve virar um arquivo de migração novo via `npm run migrate:create -- nome-da-mudanca` e `npm run migrate:up` — não mais um comando avulso.
+
+### O que foi criado
+
+- **`frontend/migrations/`**: pasta de migrações versionadas, commitada no Git (não é gitignored — ao contrário de `.env.local`, migração é código, não segredo).
+- **`frontend/migrations/1784206415955_baseline-schema.sql`**: a migração baseline (schema completo real, ver acima).
+- **`frontend/package.json`**: 3 scripts novos —
+  - `npm run migrate:create -- nome-da-mudanca` (cria um arquivo `.sql` novo com blocos Up/Down vazios).
+  - `npm run migrate:up` (aplica todas as migrações pendentes, em ordem).
+  - `npm run migrate:down` (reverte a última migração aplicada).
+  - Os dois últimos usam `--envPath .env.local` pra carregar a `DATABASE_URL` local em dev; em produção/CI, a variável de ambiente já configurada na Vercel é usada normalmente (o `--envPath` não sobrescreve uma env var já setada no processo).
+- `node-pg-migrate` instalado como `devDependency` (não vai pro bundle de produção da Vercel).
+
+### Testado
+
+- **Baseline**: `npm run migrate:up -- --dry-run` confirmou que o SQL gerado bate exatamente com o schema real (sem erros de sintaxe). `npm run migrate:up -- --fake` registrou a migração como aplicada; confirmado via query direta no Neon que a tabela `pgmigrations` tem exatamente 1 linha (a baseline) e que as 17 tabelas reais continuam intactas com os dados de sempre (`usuarios`: 3 linhas, `condominios`: 3 linhas — batendo com as contas conhecidas documentadas neste arquivo).
+- **Fluxo real de uma migração nova** (pra provar que o mecanismo funciona pra mudanças futuras, não só pro baseline): criada uma migração de teste com `CREATE TABLE teste_migracao_temporaria`, aplicada com `npm run migrate:up` (dessa vez sem `--fake`, execução real) — confirmado que a tabela foi criada de verdade no Neon. Revertida com `npm run migrate:down` — confirmado que a tabela sumiu e a linha correspondente saiu da `pgmigrations`. Arquivo de migração de teste apagado depois (não é uma migração real do projeto).
+- `npx tsc --noEmit`, `npm run test` (14/14) e `npm run build` confirmados limpos.
+
+### Limitação conhecida (cosmética, não funcional)
+
+O CLI do `node-pg-migrate` lê `DATABASE_URL` direto do `.env.local`, sem passar pelo helper `obterConnectionString()` de `db.ts` (que anexa `uselibpqcompat=true` pra evitar o aviso de depreciação do `sslmode` já documentado neste arquivo) — então rodar `npm run migrate:up`/`migrate:down` localmente ainda mostra esse aviso no terminal. É só um warning do `pg-connection-string`, não afeta a migração em si (confirmado nos testes acima), e só aparece pra quem estiver rodando o comando manualmente no terminal, não em runtime da aplicação.
+
+---
+
+## Gateway de pagamento real: PIX via Mercado Pago (2026-07-16)
+
+Fechava o último item de segurança/negócio pendente da lista: "Sem gateway de pagamento real — PIX/boleto são só exibidos pra copiar, ninguém processa pagamento de fato; marcar 'PAGO' é manual". Escolhido o **Mercado Pago** (API de Orders, Checkout Transparente) — mais usado no Brasil, PIX nativo, o usuário já tinha conta. Aplicação criada no painel deles ("Condomanage"), Access Token de teste configurado em `MERCADOPAGO_ACCESS_TOKEN`.
+
+### Decisão de arquitetura: API de Orders, não a API de Pagamentos legada
+
+O Mercado Pago tem duas APIs pra isso: a antiga "API de Pagamentos" (uma transação por requisição) e a nova "API de Orders" (recomendada por eles, mais flexível, configuração de notificação mais simples). Usada a de Orders — é o caminho que eles estão empurrando pra integrações novas, e a documentação de webhook é mais direta pra ela.
+
+### O que foi criado
+
+1. **`frontend/src/lib/mercadopago.ts`** (novo): três funções.
+   - `criarCobrancaPix({ valor, referenciaExterna, emailPagador })`: `POST https://api.mercadopago.com/v1/orders` com `type: "online"`, `processing_mode: "automatic"`, `transactions.payments[0].payment_method: { id: "pix", type: "bank_transfer" }`, `expiration_time: "P3D"` (3 dias). Retorna `orderId` + o `qr_code` real (o próprio código copia-e-cola) vindo de `transactions.payments[0].payment_method.qr_code` na resposta.
+   - `consultarOrder(orderId)`: `GET /v1/orders/{id}` — usado pelo webhook pra confirmar o status real antes de dar baixa (nunca confia só no payload da notificação).
+   - `validarAssinaturaWebhook(xSignature, xRequestId, dataId)`: implementa o algoritmo documentado pelo Mercado Pago — monta o manifest `id:{dataId em minúsculas};request-id:{x-request-id};ts:{ts};` (o `data.id` **precisa** ser convertido pra minúsculas, um detalhe da documentação deles que causa falha silenciosa se esquecido — os IDs de pedido vêm com letras maiúsculas, ex: `ORDTST01KXNMMSMG71RVK80NJZSSVENM`) e compara o HMAC-SHA256 calculado com o `v1` do header, usando `crypto.timingSafeEqual` (comparação em tempo constante, evita timing attack). Sem `MERCADOPAGO_WEBHOOK_SECRET` configurado, lança erro — falha fechada, nunca aceita uma notificação não verificável.
+2. **`frontend/migrations/..._add-mercadopago-order-id-boletos.sql`**: coluna nova `mercadopago_order_id VARCHAR(64)` em `boletos_financeiro`, pra rastrear qual pedido do Mercado Pago pertence a qual boleto (é assim que o webhook acha o boleto certo pra dar baixa).
+3. **`POST /api/condominio/financeiro`** e **`GET /api/cron/gerar-boletos`** (geração recorrente): ao criar um boleto, chamam `gerarPixParaBoleto()` (novo helper em `financeiroDb.ts`) que gera a cobrança PIX real e grava o `pix_copia_cola` de verdade + o `mercadopago_order_id`. **Se `MERCADOPAGO_ACCESS_TOKEN` não estiver configurado, não inventa um PIX falso** — o boleto é criado mesmo assim (registro financeiro não pode falhar por causa da integração de pagamento), mas o campo de PIX fica vazio, e o front-end mostra um aviso honesto em vez de um código fake.
+4. **`POST /api/webhooks/mercadopago`** (novo, rota pública sem sessão — liberada no `proxy.ts`): recebe a notificação, valida a assinatura, **sempre busca o status real via `consultarOrder`** antes de agir (nunca confia no que a notificação em si diz), e se `status === "processed"` chama `marcarBoletoPagoPorOrderId()` (novo helper, `UPDATE ... WHERE mercadopago_order_id = $1 AND status != 'PAGO'` — idempotente, não reprocessa).
+5. **`PATCH /api/condominio/financeiro/[id]/pagar` virou exclusivo do síndico.** Antes, era um botão de autoatendimento do morador ("✓ Simular Baixa" / "✓ Confirmar Pagamento") que marcava o próprio boleto como pago com um clique, sem verificação nenhuma — com PIX real, isso é logicamente incompatível (deixaria qualquer morador se "perdoar" a dívida). A rota agora exige `x-perfil: SINDICO` (novo header propagado pelo `proxy.ts`, mesmo padrão do `x-condominio-id`/`x-usuario-id` — usado aqui pra dar baixa manual excepcional, ex: morador pagou por fora via depósito).
+6. **`frontend/src/app/(dashboard)/area-morador/page.tsx`**: removidos os botões "Simular Baixa" (lista) e "Confirmar Pagamento" (modal). No lugar, o modal agora gera o QR Code de verdade **no navegador** a partir do código copia-e-cola real (reaproveitando a mesma lib `qrcode` já usada no QR de liberação de visitante — o copia-e-cola PIX *é* o conteúdo do QR, não precisa vir uma imagem pronta do Mercado Pago) e tem um botão **"🔄 Verificar Pagamento"** que só reconsulta o boleto no banco (fica PAGO quando o webhook processar). Se o PIX não estiver disponível (gateway não configurado), mostra um aviso âmbar em vez de um campo vazio ou um código falso.
+
+### Testado
+
+- **Criação de cobrança real** (`criarCobrancaPix`), contra a API de verdade do Mercado Pago com o Access Token de teste: `POST /api/condominio/financeiro` retornou um `pix_copia_cola` real (payload EMV completo, `br.gov.bcb.pix`, valor, CRC) e um `mercadopago_order_id` real (`ORDTST01...`). **Descoberta durante o teste**: o sandbox do Mercado Pago exige que o e-mail do pagador termine em `@testuser.com` (`invalid_email_for_sandbox` se não terminar) — não é um bug do código, é uma regra só do ambiente de teste deles; em produção qualquer e-mail real funciona.
+- **Consulta de status** (`consultarOrder`): confirmado que retorna `status: "action_required"`, `status_detail: "waiting_transfer"` pro pedido recém-criado (PIX ainda não pago) — bate com o que a documentação descreve.
+- **Validação de assinatura do webhook**: 5 casos testados com um segredo sintético (simulando exatamente o algoritmo que o Mercado Pago usaria com o segredo real deles) — assinatura válida aceita, assinatura adulterada rejeitada, `data.id` divergente rejeitado, header ausente rejeitado, e **sem segredo configurado lança erro** (falha fechada).
+- **Marcação de pago** (`marcarBoletoPagoPorOrderId`): testado diretamente — marca o boleto certo como `PAGO`, é idempotente (chamar de novo pro mesmo pedido não reprocessa, retorna `null`), e não quebra se o `order_id` não existir no banco.
+- **Restrição de perfil na rota `/pagar`**: `MORADOR` → `403`; `SINDICO` → `200`.
+- **Rota de webhook pública**: confirmado que o `proxy.ts` não exige sessão pra ela (não retorna o 401 padrão de rota autenticada); notificação de tópico diferente de `"order"` é ignorada com `200` sem exigir assinatura; sem `MERCADOPAGO_WEBHOOK_SECRET` configurado, falha com erro claro em vez de aceitar cegamente.
+- **UI real no navegador**: logado como morador de teste, aberto o modal de um boleto com PIX real — QR Code renderizado corretamente (`image "QR Code PIX"` confirmado na árvore de acessibilidade), botão "🔄 Verificar Pagamento" presente e funcional (sem erro ao clicar), nenhum resquício de "Simular Baixa"/"Confirmar Pagamento" na página inteira, boletos já `PAGO` corretamente não mostram o botão de verificação.
+- `npx tsc --noEmit`, `npm run test` (14/14) e `npm run build` confirmados limpos. Todos os boletos e contas de teste (incluindo a linha extra na tabela `usuarios`) apagados do Neon depois de cada rodada de teste.
+
+### O que NÃO foi possível testar (limitação do sandbox do Mercado Pago, não do código)
+
+A própria documentação deles avisa: **"Pix payments cannot be made with test credentials"** — não existe um jeito de simular a aprovação de um PIX de teste até o fim (diferente de cartão, que tem números de teste que aprovam/recusam). Ou seja, dá pra provar que a geração da cobrança e a consulta de status funcionam de ponta a ponta contra a API real, e que a lógica de validação de assinatura e de marcação como pago está correta — mas não dá pra ver, dentro deste ambiente, o Mercado Pago de fato mandando um webhook de "pagamento aprovado" pra um PIX gerado em sandbox. Isso só é observável em produção (Access Token real, dinheiro real).
+
+### Passos que faltam pra produção (fora do escopo desta sessão, dependem de ação do usuário)
+
+1. **Trocar `MERCADOPAGO_ACCESS_TOKEN` de teste pelo de produção** (aba "Credenciais produtivas" no painel do Mercado Pago) quando o condomínio estiver pronto pra receber pagamentos reais — e adicionar a mesma variável no ambiente Production da Vercel (`vercel env add`).
+2. **Configurar o webhook no painel do Mercado Pago** (seção "Notificações > Webhooks" da aplicação) apontando pra `https://sistemacondominio-nine.vercel.app/api/webhooks/mercadopago` — só é possível depois do deploy, porque o Mercado Pago precisa de uma URL pública, não alcança `localhost`. É só nesse passo que eles geram o **segredo real do webhook**.
+3. **Configurar `MERCADOPAGO_WEBHOOK_SECRET`** com esse segredo real, tanto em `.env.local` (se for testar local com um túnel tipo ngrok) quanto no ambiente Production da Vercel.
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../../lib/store/db";
 import { garantirTabelaCondominios } from "../../../../lib/store/condominiosDb";
-import { garantirTabelaFinanceiro } from "../../../../lib/store/financeiroDb";
+import { garantirTabelaFinanceiro, gerarPixParaBoleto } from "../../../../lib/store/financeiroDb";
 
 export async function GET(req: Request) {
   try {
@@ -89,29 +89,25 @@ export async function GET(req: Request) {
           const condIdPad = String(condId).padStart(3, "0");
           const uniqueSuffix = `${condIdPad}${uIdPad}`;
           const codigoBarras = `34191.79001 01043.510047 91020.150008 1 97890000085000-${uniqueSuffix}`;
-          const pixCopiaCola = `00020126580014br.gov.bcb.pix0136condominio.tailson@pix.com.br5204000053039865405850.005802BR5919CONDOMINIO TAILSON6009SAO PAULO62070503***6304-${uniqueSuffix}`;
           const detalhamento = JSON.stringify([
             { item: "Taxa Condominial Ordinária", valor: 680.0 },
             { item: "Fundo de Reserva (10%)", valor: 85.0 },
             { item: "Consumo Individual Água/Gás", valor: 85.0 },
           ]);
 
-          await pool.query(
+          const inserted = await pool.query(
             `INSERT INTO boletos_financeiro (
               unidade, competencia, valor_num, data_vencimento, status,
               codigo_barras, pix_copia_cola, detalhamento, condominio_id
-            ) VALUES ($1, $2, $3, $4, 'PENDENTE', $5, $6, $7::jsonb, $8)`,
-            [
-              u.unidade,
-              competencia,
-              valorNum,
-              dataVencimento,
-              codigoBarras,
-              pixCopiaCola,
-              detalhamento,
-              condId,
-            ]
+            ) VALUES ($1, $2, $3, $4, 'PENDENTE', $5, '', $6::jsonb, $7)
+            RETURNING id`,
+            [u.unidade, competencia, valorNum, dataVencimento, codigoBarras, detalhamento, condId]
           );
+
+          const emailRes = await pool.query("SELECT email FROM usuarios WHERE id = $1", [u.usuario_id]);
+          const emailPagador = emailRes.rows[0]?.email || `financeiro+condominio${condId}@condomanage.app`;
+          await gerarPixParaBoleto(inserted.rows[0].id, valorNum, emailPagador);
+
           criadosCount++;
         }
       }

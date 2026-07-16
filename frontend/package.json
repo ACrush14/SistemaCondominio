@@ -8,7 +8,10 @@
     "start": "next start -p 3001",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "migrate:create": "node-pg-migrate create -j sql -m migrations --",
+    "migrate:up": "node-pg-migrate up -m migrations --envPath .env.local",
+    "migrate:down": "node-pg-migrate down -m migrations --envPath .env.local"
   },
   "dependencies": {
     "@google/genai": "^2.11.0",
@@ -37,6 +40,7 @@
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "node-pg-migrate": "^8.0.4",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.10"
