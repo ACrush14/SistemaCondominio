@@ -11,10 +11,13 @@ export function proxy(req: NextRequest) {
   if (
     pathname.startsWith("/api/auth/login") ||
     pathname.startsWith("/api/auth/cadastro") ||
+    pathname.startsWith("/api/auth/esqueci-senha") ||
+    pathname.startsWith("/api/auth/redefinir-senha") ||
     pathname.startsWith("/api/condominios/publico") ||
     pathname.startsWith("/api/cron") ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/cadastro") ||
+    pathname.startsWith("/esqueci-senha") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/manifest.json") ||
     pathname.includes("favicon") ||

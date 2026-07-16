@@ -92,6 +92,11 @@ export default function LoginPage() {
               className="w-full p-3.5 rounded-xl border border-neutral/60 text-neutral-dark placeholder:text-neutral/60 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
               required
             />
+            <div className="text-right mt-1.5">
+              <a href="/esqueci-senha" className="text-xs text-primary font-semibold hover:underline">
+                Esqueceu a senha?
+              </a>
+            </div>
           </div>
           <button
             type="submit"
