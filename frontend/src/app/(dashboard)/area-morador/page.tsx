@@ -2,8 +2,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import QRCode from "qrcode";
 
-const UNIDADE_LOGADA = "Apto 301";
-
 interface Encomenda {
   id: string;
   unidade: string;
@@ -47,6 +45,25 @@ export default function AreaMoradorPage() {
   const [mensagemErro, setMensagemErro] = useState("");
   const [mensagemSucesso, setMensagemSucesso] = useState("");
 
+  // Identidade real de quem está logado — antes disso existir, a página inteira usava
+  // "Apto 301" fixo no código pra QUALQUER morador, não importa a unidade de verdade
+  // da conta. Buscado uma vez do /api/auth/me (o mesmo JWT que o proxy.ts já validou).
+  const [sessao, setSessao] = useState<{ nome: string; unidade: string } | null>(null);
+  const unidadeLogada = sessao?.unidade || "";
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.unidade) setSessao({ nome: data.nome, unidade: data.unidade });
+        else setMensagemErro("Não foi possível identificar sua unidade. Contate o síndico.");
+      })
+      .catch((err) => {
+        console.error("Erro ao carregar sessão:", err);
+        setMensagemErro("Não foi possível identificar sua sessão.");
+      });
+  }, []);
+
   // IA e Serviços
   const [perguntaIa, setPerguntaIa] = useState("");
   const [respostaIa, setRespostaIa] = useState("");
@@ -70,8 +87,9 @@ export default function AreaMoradorPage() {
   const [verificandoPagamento, setVerificandoPagamento] = useState(false);
 
   const buscarBoletos = useCallback(async () => {
+    if (!unidadeLogada) return null;
     try {
-      const res = await fetch(`/api/condominio/financeiro?unidade=${encodeURIComponent(UNIDADE_LOGADA)}`);
+      const res = await fetch(`/api/condominio/financeiro?unidade=${encodeURIComponent(unidadeLogada)}`);
       if (res.ok) {
         const dados = await res.json();
         setBoletos(dados);
@@ -84,7 +102,7 @@ export default function AreaMoradorPage() {
       setMensagemErro("Falha na conexão ao buscar boletos.");
     }
     return null;
-  }, []);
+  }, [unidadeLogada]);
 
   useEffect(() => {
     buscarBoletos();
@@ -154,8 +172,8 @@ export default function AreaMoradorPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          unidade: UNIDADE_LOGADA,
-          morador: "João (Morador Tailson)",
+          unidade: unidadeLogada,
+          morador: sessao?.nome || "Morador",
           nome_visitante: nomeVisitanteQr || "Convidado",
         }),
       });
@@ -177,7 +195,9 @@ export default function AreaMoradorPage() {
   };
 
   useEffect(() => {
-    fetch(`/api/condominio/encomendas?unidade=${encodeURIComponent(UNIDADE_LOGADA)}`)
+    if (!unidadeLogada) return;
+
+    fetch(`/api/condominio/encomendas?unidade=${encodeURIComponent(unidadeLogada)}`)
       .then((res) => res.json())
       .then((data) => setEncomendas(data))
       .catch((err) => {
@@ -185,14 +205,14 @@ export default function AreaMoradorPage() {
         setMensagemErro("Não foi possível carregar as encomendas.");
       });
 
-    fetch(`/api/condominio/enquetes?unidade=${encodeURIComponent(UNIDADE_LOGADA)}`)
+    fetch(`/api/condominio/enquetes?unidade=${encodeURIComponent(unidadeLogada)}`)
       .then((res) => res.json())
       .then((data) => setEnquetes(data))
       .catch((err) => {
         console.error("Erro ao carregar enquetes:", err);
         setMensagemErro("Não foi possível carregar as enquetes.");
       });
-  }, []);
+  }, [unidadeLogada]);
 
   const votarEnquete = async (enqueteId: number, opcaoIdx: number) => {
     setVotandoId(enqueteId);
@@ -202,13 +222,13 @@ export default function AreaMoradorPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           enquete_id: enqueteId,
-          unidade: UNIDADE_LOGADA,
+          unidade: unidadeLogada,
           opcao_index: opcaoIdx,
         }),
       });
       if (res.ok) {
         const enqRes = await fetch(
-          `/api/condominio/enquetes?unidade=${encodeURIComponent(UNIDADE_LOGADA)}`
+          `/api/condominio/enquetes?unidade=${encodeURIComponent(unidadeLogada)}`
         );
         const enqDados = await enqRes.json();
         setEnquetes(enqDados);
@@ -262,7 +282,7 @@ export default function AreaMoradorPage() {
           </span>
           <h1 className="text-3xl font-extrabold text-[#0A2540]">Área do Morador</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Unidade logada: <strong className="text-[#0A2540]">{UNIDADE_LOGADA}</strong>
+            Unidade logada: <strong className="text-[#0A2540]">{unidadeLogada}</strong>
           </p>
         </div>
 
@@ -342,7 +362,7 @@ export default function AreaMoradorPage() {
                   <span className="text-lg font-bold text-emerald-800">Adimplente</span>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  Unidade {UNIDADE_LOGADA} sem débitos judiciais ou em protesto.
+                  Unidade {unidadeLogada} sem débitos judiciais ou em protesto.
                 </p>
               </div>
             </div>

@@ -1099,3 +1099,50 @@ Bateria completa de testes reais contra o Neon (dados de teste apagados via SQL 
 - **`usuario_condominios`** (tabela de relacionamento N:N) continua com `DELETE FROM` de verdade — "remover um vínculo" é a operação correta ali, não é perda de um registro de negócio.
 - **Trilha de auditoria genérica** ("quem alterou o quê, quando, em qualquer tabela") não foi construída — só as 4 tabelas com risco real de perda de dado ganharam colunas de auditoria específicas (`_por`/`_em`). Uma tabela `auditoria` central, genérica, pra todo tipo de mutação sensível (não só exclusão) seria um projeto à parte, maior.
 - **Nenhuma UI de "restaurar"** foi construída (nem pra reativar um usuário, nem reabrir uma reserva/enquete/condomínio excluído) — hoje isso é feito via SQL direto (`UPDATE ... SET status = 'ATIVO'` / `deletado_em = NULL`), mesmo padrão já usado em outras partes do projeto que não têm UI dedicada ainda.
+
+---
+
+## Prontidão de produção: variáveis de ambiente ausentes na Vercel (2026-07-16)
+
+Descoberta ao revisar o que faltava fazer: várias integrações construídas e testadas nas últimas sessões (documentadas como "RESOLVIDO" no `demandas.md`) **nunca tiveram suas variáveis de ambiente configuradas no ambiente Production da Vercel** — o que significa que, apesar de tudo funcionar em dev, essas funcionalidades estavam efetivamente inertes no site publicado (`https://sistemacondominio-nine.vercel.app`). Confirmado via `vercel env ls production`: antes desta sessão, só existiam `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY`, `RESEND_API_KEY`.
+
+### O que foi resolvido
+
+1. **`CRON_SECRET`**: não depende de nenhum serviço externo (é só um segredo compartilhado entre o cron da própria Vercel e a própria rota `/api/cron/gerar-boletos`) — gerado com `openssl rand -hex 32`, adicionado direto em `.env.local` e via `vercel env add CRON_SECRET production`. Sem essa variável, a geração automática mensal de boletos (já agendada em `vercel.json`, `"0 8 1 * *"`) ia disparar sozinha todo mês e falhar silenciosamente com `500`.
+2. **Monitoramento Sentry**: o usuário criou uma conta e projeto novos em sentry.io (org `andersoncrushdev`, projeto `condomanage`, plataforma Next.js) e forneceu o DSN. Configurado `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG` e `SENTRY_PROJECT` em `.env.local` e em Production na Vercel. Testado localmente via `GET /api/sentry-teste` (a rota de verificação já existia, construída numa sessão anterior): retornou `sentryAtivo: true` e um `eventId` real do Sentry, confirmando que a exceção de teste foi capturada de verdade (não é mais o caminho "sem DSN configurado" que só simula sucesso).
+
+### O que ficou deliberadamente de fora (decisão do usuário)
+
+- **`MERCADOPAGO_ACCESS_TOKEN` de produção**: o token que está configurado hoje é só de **teste/sandbox** — um PIX gerado com ele nunca pode ser pago até o fim (limitação documentada do próprio Mercado Pago, já registrada na seção "Gateway de pagamento real" acima). Colocar o token de teste em produção mostraria pros moradores um código PIX com aparência real que **ninguém consegue realmente pagar** — pior do que a mensagem honesta atual de "PIX indisponível". Decisão explícita do usuário: manter a mensagem honesta até ele ativar credenciais de produção de verdade no Mercado Pago (isso normalmente exige verificação de conta bancária do lado deles).
+- **`MERCADOPAGO_WEBHOOK_SECRET`**: consequência direta do item acima — configurar o webhook no painel do Mercado Pago só faz sentido quando houver token de produção de verdade.
+- **Credenciais Twilio (`TWILIO_ACCOUNT_SID`/`AUTH_TOKEN`/`PHONE_NUMBER`)**: o usuário confirmou que ainda não tem uma conta Twilio configurada. WhatsApp real continua fora do ar em produção (retorna falha honesta, como já documentado), até ele criar a conta e fornecer as credenciais.
+
+### Uma pegadinha importante sobre `vercel env add`
+
+Adicionar uma variável de ambiente via `vercel env add` **não afeta o deploy que já está no ar** — só entra em vigor no **próximo deploy**. Como as variáveis foram adicionadas fora de um `git push` (não houve mudança de código nesse momento específico), o site publicado continuou rodando sem elas até o próximo deploy natural (o próximo `git push` na `main` já dispara isso automaticamente, dado o CI/CD já configurado). Combinado com o usuário: deixar essa ativação acontecer no próximo deploy natural, sem forçar um redeploy manual só pra isso.
+
+### Testado
+
+- `vercel env ls production` confirmado com as 4 variáveis novas (`CRON_SECRET`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`) antes inexistentes.
+- Sentry testado localmente com o DSN real configurado: `GET /api/sentry-teste` retornou `sentryAtivo: true` com `eventId` real (não mais o caminho de "DSN ausente").
+
+---
+
+## Área do Morador: unidade real do usuário logado, não mais fixa em "Apto 301" (2026-07-16)
+
+Bug funcional real, pré-existente às sessões recentes: `frontend/src/app/(dashboard)/area-morador/page.tsx` tinha `const UNIDADE_LOGADA = "Apto 301"` **fixo no código**, usado em 8 lugares diferentes (busca de boletos, encomendas, enquetes, geração de código de visita, texto de "Situação Cadastral", votação em enquete). Na prática, **todo morador que logasse, não importa a unidade real da conta dele, via e gerava dados como se fosse o Apto 301** — só não tinha aparecido como bug até agora porque só existia uma conta de morador de teste sendo usada de verdade.
+
+### O que mudou
+
+- Removida a constante fixa. Adicionado um `useEffect` que busca `GET /api/auth/me` (rota que já existia, já devolvia `unidade` e `nome` a partir do JWT verificado) uma vez ao montar a página, guardando o resultado num estado `sessao`.
+- Todo lugar que usava `UNIDADE_LOGADA` passou a usar `sessao?.unidade` (via uma variável derivada `unidadeLogada`). Os `useEffect`/`useCallback` que buscam boletos, encomendas e enquetes agora dependem de `unidadeLogada` e só disparam a requisição depois que a sessão real carregar (evita uma primeira chamada com unidade vazia).
+- De brinde, a geração de código de visita (`gerarQrCode`) também tinha o nome do morador hardcoded (`"João (Morador Tailson)"`) — trocado por `sessao?.nome`, mesma classe de bug.
+
+### Testado
+
+Criada uma conta de morador de teste numa unidade **diferente** da hardcoded (`Apto 777`) e testado ao vivo no navegador (login real, sessão real):
+- Texto "Unidade logada" na página mostrou corretamente `Apto 777`, não `Apto 301`.
+- Texto de "Situação Cadastral" também mostrou `Apto 777` corretamente.
+- Confirmado via inspeção de rede que a chamada a `GET /api/condominio/financeiro` foi feita com `?unidade=Apto%20777`, não mais a unidade fixa.
+
+Conta de teste removida do Neon depois. `npx tsc --noEmit`, `npm run test` (14/14) e `npm run build` confirmados limpos.
