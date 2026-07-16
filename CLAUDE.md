@@ -934,6 +934,42 @@ Testado ao vivo via `curl` contra o Postgres de dev (dados de teste removidos de
 
 `npx tsc --noEmit`, `npm run test` (14/14) e `npm run build` confirmados limpos.
 
+---
+
+## Restrição de páginas/rotas por perfil no `proxy.ts` (2026-07-16)
+
+Até aqui o `proxy.ts` só perguntava "está logado?" — não checava se o perfil fazia sentido pra aquela tela. Um MORADOR que soubesse a URL `/usuarios` ou `/portaria` conseguia abrir a página normalmente (os dados continuavam protegidos por `condominio_id`, mas a tela em si não era bloqueada por papel).
+
+**Descoberta durante a implementação, mais séria do que a descrição original do gap:** `GET`/`POST /api/usuarios` (e as rotas `[id]`) **não tinham nenhuma checagem de perfil** — não era só a página que ficava visível, um MORADOR autenticado conseguia chamar `POST /api/usuarios` direto (via `curl`/DevTools) e criar uma conta nova com **qualquer perfil**, incluindo `SINDICO`, dentro do próprio condomínio. Isso é escalonamento de privilégio de verdade, não só uma questão de UX — corrigido junto nesta mudança.
+
+### O que mudou
+
+Em `frontend/src/proxy.ts`:
+
+1. **Mapa declarativo `RESTRICOES_POR_PERFIL`**: lista de `{ prefixo, perfis[] }` — só entram aqui rotas claramente "admin-only":
+   - `/usuarios` e `/api/usuarios` (página **e** API, incluindo `[id]` e `[id]/condominios`) → só `SINDICO`.
+   - `/moradores` → só `SINDICO`.
+   - `/portaria` → `SINDICO` e `PORTEIRO` (não `MORADOR`).
+   - `/` (painel do síndico, tratado à parte com comparação exata `pathname === "/"`, não `startsWith`, porque `"/"` combinaria com qualquer path) → só `SINDICO`.
+   - Tudo que não bater com nenhuma entrada continua aberto a qualquer perfil autenticado — a decisão foi restringir só o que tinha evidência clara de ser admin-only (conteúdo da página, nome da rota), sem chutar em cima de `/reservas`, `/ocorrencias` e `/area-morador`, que não têm essa evidência.
+2. **JWT agora é lido com `perfil` no proxy** (já existia no token desde o login, só nunca tinha sido usado aqui). Se o perfil não tem permissão pra rota: API retorna `403` com uma mensagem clara; página redireciona pra "casa" daquele perfil (`homeDoPerfil()`: `MORADOR` → `/area-morador`, `PORTEIRO` → `/portaria`, `SINDICO`/outro → `/`) em vez de deixar renderizar a tela errada.
+3. **`/moradores/:path*` foi adicionado ao `matcher`** — faltava na lista original, então o `proxy.ts` nunca rodava pra essa página (nem checagem de login, quanto mais de perfil). Corrigido junto, já que estava mexendo na mesma área.
+
+### Testado
+
+Criadas contas reais de teste (`PORTEIRO` e `MORADOR`, apagadas do Neon depois) e testado via `curl` com sessões reais dos 3 perfis:
+- `MORADOR` chamando `GET /api/usuarios` → `403`.
+- `MORADOR` acessando `/usuarios` → redireciona pra `/area-morador`. `MORADOR` acessando `/portaria` → redireciona pra `/area-morador`. `MORADOR` acessando `/` → redireciona pra `/area-morador`.
+- `PORTEIRO` acessando `/portaria` → `200` (permitido). `PORTEIRO` acessando `/usuarios` → redireciona pra `/portaria`. `PORTEIRO` acessando `/` → redireciona pra `/portaria`.
+- `SINDICO` acessando `/usuarios`, `/portaria` e `/` → `200` nos três.
+- Confirmado que rotas **não** restritas continuam abertas normalmente pra qualquer perfil: `MORADOR` em `/reservas`, `/ocorrencias` e `/area-morador` → `200` nos três (garante que o `pathname === "/"` não vazou um bloqueio acidental via `startsWith` pra essas rotas).
+
+`npx tsc --noEmit`, `npm run test` (14/14) e `npm run build` confirmados limpos.
+
+### Fora do escopo desta mudança (deliberado)
+
+- As APIs específicas da portaria (`/api/condominio/panico`, `/api/condominio/livro-turno`, `/api/condominio/visitas`) **não** foram restritas por perfil — só a página `/portaria` e o par `/usuarios`+`/api/usuarios`. Hoje, tecnicamente, um `MORADOR` ainda consegue chamar essas rotas de API diretamente (não pela tela, que já está bloqueada) sabendo o path exato. Não é o mesmo nível de risco do buraco do `/api/usuarios` (não permite criar conta nem vazar credencial), mas vale considerar numa passada futura se isso importar.
+- `login/page.tsx` continua mandando `PORTEIRO` pra `/reservas` depois do login (só `MORADOR` tem destino especial ali) — não é um bug introduzido por essa mudança, é o comportamento que já existia; `/reservas` continua acessível a `PORTEIRO`, então não quebra nada, só não é o destino "ideal". Não alterado aqui pra manter o escopo restrito ao que foi pedido.
 
 
 

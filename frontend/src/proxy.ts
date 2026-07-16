@@ -4,6 +4,33 @@ import jwt from "jsonwebtoken";
 
 const CHAVE_SECRETA = process.env.JWT_SECRET!;
 
+// Páginas/rotas de API restritas por perfil — só entra aqui o que é claramente
+// "admin-only" (gestão de usuários, painel do síndico, operação da portaria). Tudo que
+// não bater com nenhuma entrada aqui continua aberto a qualquer perfil autenticado
+// (os dados em si já são protegidos por condominio_id nas rotas, isso aqui é a camada
+// de "esse perfil nem deveria estar vendo essa tela/rota").
+const RESTRICOES_POR_PERFIL: { prefixo: string; perfis: string[] }[] = [
+  { prefixo: "/usuarios", perfis: ["SINDICO"] },
+  { prefixo: "/api/usuarios", perfis: ["SINDICO"] },
+  { prefixo: "/moradores", perfis: ["SINDICO"] },
+  { prefixo: "/portaria", perfis: ["SINDICO", "PORTEIRO"] },
+];
+
+function perfilPermitido(pathname: string, perfil: string | undefined): boolean {
+  if (pathname === "/") return perfil === "SINDICO";
+  const regra = RESTRICOES_POR_PERFIL.find((r) => pathname.startsWith(r.prefixo));
+  if (!regra) return true;
+  return !!perfil && regra.perfis.includes(perfil);
+}
+
+// Pra onde mandar de volta quem tentou acessar uma tela fora do seu perfil — a home de
+// cada um, não um erro genérico.
+function homeDoPerfil(perfil: string | undefined): string {
+  if (perfil === "MORADOR") return "/area-morador";
+  if (perfil === "PORTEIRO") return "/portaria";
+  return "/";
+}
+
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -45,9 +72,20 @@ export function proxy(req: NextRequest) {
   try {
     const payload = jwt.verify(token, CHAVE_SECRETA) as {
       id?: number;
+      perfil?: string;
       condominio_id?: number;
       condominios?: number[];
     };
+
+    if (!perfilPermitido(pathname, payload.perfil)) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json(
+          { erro: "Acesso negado (403): seu perfil não tem permissão para acessar este recurso." },
+          { status: 403 }
+        );
+      }
+      return NextResponse.redirect(new URL(homeDoPerfil(payload.perfil), req.url));
+    }
 
     // O usuário pode ter escolhido, na sessão atual, qualquer condomínio dentre os que
     // o próprio token diz que ele tem acesso (cookie setado só pela rota
@@ -88,6 +126,7 @@ export const config = {
     "/area-morador/:path*",
     "/portaria/:path*",
     "/usuarios/:path*",
+    "/moradores/:path*",
     "/api/:path*",
   ],
 };
