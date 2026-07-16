@@ -19,7 +19,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: "Informe um e-mail." }, { status: 400 });
     }
 
-    const usuario = await pool.query("SELECT id, nome, email FROM usuarios WHERE email = $1", [emailLimpo]);
+    const usuario = await pool.query(
+      "SELECT id, nome, email FROM usuarios WHERE email = $1 AND status = 'ATIVO'",
+      [emailLimpo]
+    );
 
     if (usuario.rowCount === 0) {
       return NextResponse.json({ sucesso: true, mensagem: MENSAGEM_PADRAO });

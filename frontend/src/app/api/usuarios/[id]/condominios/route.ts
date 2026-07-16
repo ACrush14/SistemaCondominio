@@ -41,7 +41,7 @@ export async function GET(
 
     const verif = await pool.query(
       `SELECT id, nome, email, perfil FROM usuarios
-       WHERE id = $1 AND (
+       WHERE id = $1 AND status = 'ATIVO' AND (
          condominio_id = $2 OR EXISTS (
            SELECT 1 FROM usuario_condominios uc WHERE uc.usuario_id = usuarios.id AND uc.condominio_id = $2
          )
@@ -56,7 +56,9 @@ export async function GET(
       );
     }
 
-    const todosRes = await pool.query("SELECT id, nome, slug FROM condominios ORDER BY id ASC");
+    const todosRes = await pool.query(
+      "SELECT id, nome, slug FROM condominios WHERE deletado_em IS NULL ORDER BY id ASC"
+    );
     const vinculosRes = await pool.query(
       "SELECT condominio_id FROM usuario_condominios WHERE usuario_id = $1 ORDER BY condominio_id ASC",
       [idNum]
@@ -101,7 +103,7 @@ export async function POST(
 
     const verif = await pool.query(
       `SELECT id, condominio_id FROM usuarios
-       WHERE id = $1 AND (
+       WHERE id = $1 AND status = 'ATIVO' AND (
          condominio_id = $2 OR EXISTS (
            SELECT 1 FROM usuario_condominios uc WHERE uc.usuario_id = usuarios.id AND uc.condominio_id = $2
          )

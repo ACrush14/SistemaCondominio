@@ -18,9 +18,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // Verificar se a enquete existe, está ativa E pertence ao mesmo condomínio do votante
+    // Verificar se a enquete existe, não foi excluída, está ativa E pertence ao mesmo condomínio do votante
     const checkEnquete = await pool.query(
-      "SELECT status FROM enquetes WHERE id = $1 AND condominio_id = $2",
+      "SELECT status FROM enquetes WHERE id = $1 AND condominio_id = $2 AND deletado_em IS NULL",
       [enquete_id, condominioId]
     );
 

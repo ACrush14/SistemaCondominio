@@ -13,7 +13,7 @@ export async function listarUsuarios(limite = 10, condominioId = 1, offset = 0):
   const res = await pool.query(
     `SELECT id, nome, email, perfil, unidade, status
      FROM usuarios
-     WHERE condominio_id = $1
+     WHERE condominio_id = $1 AND status = 'ATIVO'
      ORDER BY id ASC
      LIMIT $2 OFFSET $3`,
     [condominioId, limite, offset]
@@ -23,7 +23,7 @@ export async function listarUsuarios(limite = 10, condominioId = 1, offset = 0):
 
 export async function contarUsuarios(condominioId = 1): Promise<number> {
   const res = await pool.query(
-    "SELECT COUNT(*) as total FROM usuarios WHERE condominio_id = $1",
+    "SELECT COUNT(*) as total FROM usuarios WHERE condominio_id = $1 AND status = 'ATIVO'",
     [condominioId]
   );
   return parseInt(res.rows[0].total, 10);

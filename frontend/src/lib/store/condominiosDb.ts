@@ -55,7 +55,7 @@ export async function garantirTabelaCondominios() {
 export async function listarCondominios() {
   await garantirTabelaCondominios();
   const res = await pool.query(
-    "SELECT id, nome, slug, cnpj, endereco, total_unidades, plano FROM condominios ORDER BY id ASC"
+    "SELECT id, nome, slug, cnpj, endereco, total_unidades, plano FROM condominios WHERE deletado_em IS NULL ORDER BY id ASC"
   );
   return res.rows;
 }
@@ -64,7 +64,7 @@ export async function listarCondominios() {
 // escolher o prédio num formulário, sem vazar CNPJ/endereço pra quem não está logado.
 export async function listarCondominiosPublico() {
   await garantirTabelaCondominios();
-  const res = await pool.query("SELECT id, nome FROM condominios ORDER BY nome ASC");
+  const res = await pool.query("SELECT id, nome FROM condominios WHERE deletado_em IS NULL ORDER BY nome ASC");
   return res.rows;
 }
 
@@ -81,7 +81,7 @@ export async function atualizarCondominio(
 ) {
   await garantirTabelaCondominios();
 
-  const atual = await pool.query("SELECT * FROM condominios WHERE id = $1", [id]);
+  const atual = await pool.query("SELECT * FROM condominios WHERE id = $1 AND deletado_em IS NULL", [id]);
   if (atual.rows.length === 0) {
     throw new Error("Condomínio não encontrado.");
   }
@@ -106,18 +106,23 @@ export async function atualizarCondominio(
   return res.rows[0];
 }
 
-export async function excluirCondominio(id: number) {
+// Soft-delete: nunca apaga o condomínio de verdade (o que já era bloqueado na prática
+// pela FK sempre que havia usuários/dados vinculados) — só marca deletado_em/deletado_por
+// e o prédio some dos catálogos. Idempotente.
+export async function excluirCondominio(id: number, deletadoPor: number | null = null) {
   await garantirTabelaCondominios();
 
   if (id === 1) {
     throw new Error("Não é permitido excluir o condomínio principal/padrão do sistema (Tailson Executive).");
   }
 
-  const check = await pool.query("SELECT id FROM condominios WHERE id = $1", [id]);
-  if (check.rows.length === 0) {
+  const res = await pool.query(
+    "UPDATE condominios SET deletado_em = NOW(), deletado_por = $2 WHERE id = $1 AND deletado_em IS NULL RETURNING id",
+    [id, deletadoPor]
+  );
+  if (res.rowCount === 0) {
     throw new Error("Condomínio não encontrado.");
   }
 
-  await pool.query("DELETE FROM condominios WHERE id = $1", [id]);
   return { sucesso: true };
 }

@@ -8,8 +8,10 @@ export async function POST(req: Request) {
     const { email, senha } = await req.json();
     const emailLimpo = (email || "").trim().toLowerCase();
 
+    // status = 'ATIVO' é crítico aqui: uma conta desativada (soft-delete via
+    // DELETE /api/usuarios/[id]) não pode continuar autenticando.
     const resultado = await pool.query(
-      "SELECT id, nome, email, senha_hash, perfil, unidade, condominio_id FROM usuarios WHERE email = $1",
+      "SELECT id, nome, email, senha_hash, perfil, unidade, condominio_id FROM usuarios WHERE email = $1 AND status = 'ATIVO'",
       [emailLimpo]
     );
     const usuario = resultado.rows[0];

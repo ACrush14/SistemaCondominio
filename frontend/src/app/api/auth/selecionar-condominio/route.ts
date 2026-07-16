@@ -37,7 +37,10 @@ export async function POST(req: Request) {
     );
   }
 
-  const existe = await pool.query("SELECT id, nome FROM condominios WHERE id = $1", [idNumerico]);
+  const existe = await pool.query(
+    "SELECT id, nome FROM condominios WHERE id = $1 AND deletado_em IS NULL",
+    [idNumerico]
+  );
   if (existe.rowCount === 0) {
     return NextResponse.json({ erro: "Condomínio não encontrado." }, { status: 404 });
   }

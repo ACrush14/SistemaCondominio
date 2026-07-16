@@ -89,7 +89,7 @@ export async function formatarEnquetes(unidade?: string | null, condominioId = 1
     `SELECT id, titulo, descricao, opcoes, status, criada_por,
             TO_CHAR(criado_em, 'DD/MM/YYYY') AS data
      FROM enquetes
-     WHERE condominio_id = $1
+     WHERE condominio_id = $1 AND deletado_em IS NULL
      ORDER BY id DESC`,
     [condominioId]
   );
@@ -144,4 +144,20 @@ export async function formatarEnquetes(unidade?: string | null, condominioId = 1
       meu_voto,
     };
   });
+}
+
+// Soft-delete: nunca apaga a enquete de verdade (o que também apagaria os votos via
+// ON DELETE CASCADE) — só marca deletado_em/deletado_por. Idempotente.
+export async function excluirEnquete(
+  id: number,
+  condominioId: number,
+  deletadoPor: number | null
+): Promise<boolean> {
+  const res = await pool.query(
+    `UPDATE enquetes SET deletado_em = NOW(), deletado_por = $3
+     WHERE id = $1 AND condominio_id = $2 AND deletado_em IS NULL
+     RETURNING id`,
+    [id, condominioId, deletadoPor]
+  );
+  return (res.rowCount ?? 0) > 0;
 }

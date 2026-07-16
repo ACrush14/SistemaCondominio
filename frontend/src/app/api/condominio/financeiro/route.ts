@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     // ninguém, usa um e-mail técnico do próprio condomínio (não afeta o recebimento, o
     // PIX sempre credita a conta configurada no Mercado Pago, o payer é só metadado).
     const morador = await pool.query(
-      "SELECT email FROM usuarios WHERE unidade = $1 AND condominio_id = $2 AND perfil = 'MORADOR' LIMIT 1",
+      "SELECT email FROM usuarios WHERE unidade = $1 AND condominio_id = $2 AND perfil = 'MORADOR' AND status = 'ATIVO' LIMIT 1",
       [unidade, condominioId]
     );
     const emailPagador = morador.rows[0]?.email || `financeiro+condominio${condominioId}@condomanage.app`;

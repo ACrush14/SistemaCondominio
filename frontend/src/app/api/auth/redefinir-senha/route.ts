@@ -16,7 +16,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: "A nova senha precisa ter pelo menos 6 caracteres." }, { status: 400 });
     }
 
-    const usuario = await pool.query("SELECT id FROM usuarios WHERE email = $1", [emailLimpo]);
+    const usuario = await pool.query(
+      "SELECT id FROM usuarios WHERE email = $1 AND status = 'ATIVO'",
+      [emailLimpo]
+    );
     if (usuario.rowCount === 0) {
       // Mesma resposta genérica tanto pra e-mail inexistente quanto pra código errado —
       // não revela se o e-mail tem conta ou não (mesma lógica anti-enumeração da rota de envio).

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../../../lib/store/db";
-import { garantirTabelasEnquetes, formatarEnquetes } from "../../../../../lib/store/enquetesDb";
-import { obterCondominioId } from "../../../../../lib/tenant";
+import { garantirTabelasEnquetes, formatarEnquetes, excluirEnquete } from "../../../../../lib/store/enquetesDb";
+import { obterCondominioId, obterUsuarioId } from "../../../../../lib/tenant";
 
 export async function PATCH(
   req: Request,
@@ -35,11 +35,12 @@ export async function DELETE(
   try {
     await garantirTabelasEnquetes();
     const condominioId = obterCondominioId(req);
+    const usuarioId = obterUsuarioId(req);
     const { id } = await params;
-    await pool.query(
-      "DELETE FROM enquetes WHERE id = $1 AND condominio_id = $2",
-      [Number(id), condominioId]
-    );
+    const excluida = await excluirEnquete(Number(id), condominioId, usuarioId);
+    if (!excluida) {
+      return NextResponse.json({ erro: "Enquete não encontrada." }, { status: 404 });
+    }
     return NextResponse.json({ sucesso: true });
   } catch (_erro) {
     return NextResponse.json({ erro: "Erro ao excluir enquete." }, { status: 400 });

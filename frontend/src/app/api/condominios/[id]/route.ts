@@ -4,6 +4,7 @@ import {
   atualizarCondominio,
   excluirCondominio,
 } from "../../../../lib/store/condominiosDb";
+import { obterUsuarioId } from "../../../../lib/tenant";
 
 export async function PATCH(
   req: Request,
@@ -42,7 +43,7 @@ export async function DELETE(
       return NextResponse.json({ erro: "ID do condomínio inválido." }, { status: 400 });
     }
 
-    await excluirCondominio(numId);
+    await excluirCondominio(numId, obterUsuarioId(req));
     const lista = await listarCondominios();
 
     return NextResponse.json({
