@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../lib/store/db";
 import { obterCondominioId } from "../../../lib/tenant";
-import { ReservaRow, comHorarioExibicao, listarReservas, contarReservas } from "../../../lib/store/reservasDb";
+import {
+  ReservaRow,
+  comHorarioExibicao,
+  listarReservas,
+  contarReservas,
+  calcularDiferencaDias,
+  verificarConflitoReserva,
+} from "../../../lib/store/reservasDb";
 
 export async function GET(req: Request) {
   try {
@@ -43,13 +50,15 @@ export async function POST(req: Request) {
     const condominioId = obterCondominioId(req);
     const body = await req.json();
 
-    // Regra dos 30 dias
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const dataAlvo = new Date(body.data_reserva + "T00:00:00");
-    const diferencaDias = Math.ceil(
-      (dataAlvo.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24)
-    );
+    // Regra dos 30 dias (mesma função usada pela validação da IA Mania, evita duplicar a lógica)
+    const diferencaDias = calcularDiferencaDias(body.data_reserva);
+
+    if (isNaN(diferencaDias) || diferencaDias < 0) {
+      return NextResponse.json(
+        { erro: "A data da reserva é inválida ou já passou." },
+        { status: 400 }
+      );
+    }
 
     if (diferencaDias > 30) {
       return NextResponse.json(
@@ -62,6 +71,29 @@ export async function POST(req: Request) {
     }
 
     const fimFormatado = body.dia_inteiro ? "23:00" : body.horario_fim || "22:00";
+
+    // Mesma checagem de conflito de horário já usada pela IA Mania — sem ela, dava pra
+    // criar duas reservas sobrepostas na mesma área/horário só usando o formulário manual.
+    const conflito = await verificarConflitoReserva(
+      condominioId,
+      body.area,
+      body.data_reserva,
+      body.horario_inicio || "00:00",
+      fimFormatado,
+      !!body.dia_inteiro
+    );
+
+    if (conflito) {
+      const msgHorario = conflito.dia_inteiro
+        ? "para o dia inteiro"
+        : `das ${conflito.horario_inicio} às ${conflito.horario_fim}`;
+      return NextResponse.json(
+        {
+          erro: `Já existe uma reserva no(a) ${body.area} para ${body.data_reserva} (${msgHorario}), que entra em conflito com o horário solicitado. Escolha outro horário ou outra data.`,
+        },
+        { status: 409 }
+      );
+    }
 
     const resultado = await pool.query<ReservaRow>(
       `INSERT INTO reservas (area, data_reserva, horario_inicio, horario_fim, dia_inteiro, convidados, observacao, morador, condominio_id)

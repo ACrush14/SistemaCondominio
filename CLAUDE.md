@@ -910,6 +910,30 @@ Pedido explícito do usuário: verificação por e-mail com código de 6 número
 
 - Assim como a Central de Notificações, o e-mail é enviado via domínio sandbox do Resend (`onboarding@resend.dev`) — em produção, só entrega de verdade pra caixa do dono da conta Resend, não pra qualquer morador real. Precisa verificar um domínio próprio pra funcionar de ponta a ponta em produção (item já documentado como pendente, não é um problema novo introduzido aqui).
 
+---
+
+## Conflito de horário na criação manual de reservas (2026-07-16)
+
+A IA Mania já checava conflito de horário antes de "confirmar" uma reserva (ver seção própria acima), mas a rota de criação direta (`POST /api/reservas`, usada pelo formulário manual em `/reservas`) não tinha essa trava — dava pra criar duas reservas sobrepostas na mesma área/horário só preenchendo o formulário na UI. Fechava o item pendente "Reservas criadas manualmente não checam conflito de horário".
+
+### O que mudou
+
+`frontend/src/app/api/reservas/route.ts`, `POST`:
+
+1. **Regra dos 30 dias reescrita pra reaproveitar `calcularDiferencaDias`** (já existia em `reservasDb.ts`, usada pela IA Mania) em vez de duplicar o cálculo de diferença de dias inline — também corrigiu de brinde um buraco pequeno: a versão antiga não rejeitava datas inválidas ou no passado (só verificava `> 30`), a nova rejeita explicitamente (`400`) quando a data é inválida ou já passou.
+2. **Checagem de conflito com `verificarConflitoReserva`** (mesma função usada pela IA Mania, já escopada por `condominio_id`) antes do `INSERT` — se houver sobreposição de horário na mesma área/data com uma reserva ativa (não cancelada/rejeitada), retorna `409` com mensagem explicando exatamente qual reserva está conflitando e sugerindo escolher outro horário. O frontend (`reservas/page.tsx`) já tratava `!res.ok` e exibia `data.erro`, então a mudança aparece automaticamente na UI sem precisar tocar no componente.
+
+### Testado
+
+Testado ao vivo via `curl` contra o Postgres de dev (dados de teste removidos depois):
+- Reserva base criada (Churrasqueira, 2026-07-20, 14:00-18:00) → `201`.
+- Reserva sobreposta na mesma área/data (16:00-20:00) → `409`, mensagem correta identificando o conflito com a reserva das 14:00-18:00.
+- Reserva na mesma área/data mas em horário livre (19:00-21:00, depois do fim da primeira) → `201`, sem bloqueio.
+- Reserva em área diferente (Academia) no mesmo horário da primeira → `201`, sem bloqueio (conflito é só por área+data+horário, não por horário isolado).
+- Data no passado → `400 "A data da reserva é inválida ou já passou."`.
+
+`npx tsc --noEmit`, `npm run test` (14/14) e `npm run build` confirmados limpos.
+
 
 
 
