@@ -1192,3 +1192,27 @@ Pedido do usuário: ter o pitch visual (feito antes como artifact do Claude, só
 Testado ao vivo no navegador **sem sessão ativa**: `http://localhost:3001/apresentacao` carrega direto (sem redirecionar pra `/login`), vídeo com `readyState: 4` (decodificado, tocável), todas as 4 imagens com `naturalWidth` correto, fonte Fraunces confirmada carregada (`document.fonts.check(...)` retornando `true`). `npx tsc --noEmit`, `npm run build` (rota compilada como estática, `○ /apresentacao`) e `npm run test` (14/14) confirmados limpos.
 
 Depois do deploy, a URL pra compartilhar é `https://sistemacondominio-nine.vercel.app/apresentacao`, e o vídeo isolado fica em `https://sistemacondominio-nine.vercel.app/apresentacao/demo.mp4` — link direto, sem precisar abrir a página inteira, útil pra anexar em WhatsApp/e-mail.
+
+Sessão seguinte (2026-07-17): adicionados botões de acesso rápido pra essa página — "🎬 Ver Apresentação em Vídeo" na tela de login (`frontend/src/app/login/page.tsx`, abaixo do título) e "🎬 Apresentação em Vídeo" na barra de ações do Dashboard do Síndico (`frontend/src/app/(dashboard)/page.tsx`, primeiro botão), os dois abrindo `/apresentacao` em nova aba. Verificado direto em produção (não deu pra testar em dev local nesse notebook — ver seção "Ambiente de trabalho: cuidado com pastas do Google Drive 'Acesso a outros computadores'" logo abaixo).
+
+## Sessões rodando em notebook via "Acesso a outros computadores" do Google Drive (2026-07-17)
+
+Duas descobertas nesta sessão, rodando o projeto a partir de `H:\Outros computadores\Meu computador\...` (o recurso do Google Drive Desktop que deixa navegar/editar arquivos de **outro computador remotamente, ao vivo pela rede** — não é uma cópia local sincronizada, é streaming remoto). Isso é bem diferente do que o nome sugere, e explica dois problemas reais encontrados aqui.
+
+### 1. `.git` fica inconsistente entre PC e notebook
+
+Como cada leitura/escrita de arquivo nessa pasta viaja pela rede até o PC, a pasta `.git` (que o git escreve em muitos arquivos pequenos, rapidamente) pode ficar num estado parcial se as duas máquinas "verem" o filesystem em momentos diferentes. Encontrado no início desta sessão: o notebook tinha o conteúdo de alguns arquivos já atualizado (batendo com um commit novo do GitHub), mas o `HEAD` do git ainda apontava pro commit antigo, e outros arquivos nem tinham chegado ainda — um estado que nunca existiu de verdade em nenhuma das duas máquinas isoladamente. Resolvido com `git stash` + `git pull` (fast-forward) + descarte do stash (conteúdo já batia com o que o pull trouxe).
+
+**Regra prática**: nessa pasta, sempre sincronize via `git push`/`git pull` de verdade, nunca confie no Google Drive pra propagar mudanças de código entre as máquinas — ele serve bem pra outros arquivos, mas não pra dentro de `.git`.
+
+### 2. `next dev` fica quase inutilizável
+
+`npm run dev` levou 56 segundos só pra ficar "Ready" (o próprio Next.js avisa no log: `Slow filesystem detected... consider moving it to a local folder`), e a primeira requisição de página trava/derruba o processo em vez de responder. Mudanças de UI feitas nesse ambiente não dá pra verificar com o preview local — a alternativa que funcionou foi revisar o código com cuidado, dar `git push`, e verificar direto no deploy da Vercel (que builda em disco local de verdade e fica pronto em 1-2 minutos).
+
+### 3. Histórico do git reescrito pra remover `Co-Authored-By: Claude`
+
+A pedido explícito do usuário (preocupação de credibilidade do projeto), removida a linha `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>` de todos os 23 commits que tinham essa linha (`git filter-branch --msg-filter`, efeito cascata mudou o SHA de 33 commits no total — de `fb9cba6` em diante). Confirmado antes do push que o conteúdo de código ficou 100% idêntico (`git diff` entre a branch antiga e a nova, vazio) — só a mensagem dos commits mudou. Enviado com `git push --force-with-lease`.
+
+Nota técnica pra quem reabrir esse tópico: a página de "Contributors" do GitHub é baseada no campo `Author` do commit, não no trailer `Co-Authored-By` — em nenhum commit deste repositório o `Author`/`Committer` foi outro que não o usuário, então "Claude" nunca apareceu na contagem agregada de contribuidores; só aparecia como texto dentro da mensagem de 23 commits específicos (visível ao abrir aquele commit no GitHub). Ainda assim, a reescrita foi feita porque o usuário preferiu não ter nem esse traço no histórico. **A partir desta sessão, novos commits neste projeto não devem incluir a linha `Co-Authored-By: Claude` — é uma decisão explícita do usuário, não um esquecimento.**
+
+**Consequência que precisa de ação manual**: como os SHAs mudaram, o clone do PC vai divergir do GitHub. Da próxima vez que o projeto for aberto lá, rodar `git fetch origin` e conferir `git status` (nada pendente) antes de `git reset --hard origin/main` — um `git pull` normal vai falhar (histórico não é mais fast-forward).
