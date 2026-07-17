@@ -1146,3 +1146,27 @@ Criada uma conta de morador de teste numa unidade **diferente** da hardcoded (`A
 - Confirmado via inspeção de rede que a chamada a `GET /api/condominio/financeiro` foi feita com `?unidade=Apto%20777`, não mais a unidade fixa.
 
 Conta de teste removida do Neon depois. `npx tsc --noEmit`, `npm run test` (14/14) e `npm run build` confirmados limpos.
+
+---
+
+## Barra lateral responsiva em mobile (padrão de gaveta) (2026-07-16)
+
+A passada de responsividade mobile documentada acima ("UX e Responsividade Mobile — Item 29") mexeu em tabelas e grids, mas nunca tinha tocado no `Sidebar.tsx` — ficou registrado como risco não verificado. O usuário perguntou diretamente se a barra lateral era responsiva em celular, e a resposta era não: `<aside className="fixed left-0 top-0 h-screen w-64 ...">` tinha largura fixa de 256px sem nenhuma classe responsiva, e o `<main>` em `frontend/src/app/(dashboard)/layout.tsx` tinha `ml-64` (também fixo) pra abrir espaço pra ela. Confirmado ao vivo no navegador (redimensionando pra 375-430px e medindo `getBoundingClientRect()` dos elementos, já que a barra lateral é renderizada em **todas** as páginas do dashboard via layout compartilhado): numa tela de celular real, a barra sozinha tomava ~70% da largura, sem nenhum jeito de escondê-la.
+
+### O que mudou
+
+- **`frontend/src/components/Sidebar.tsx`**: adicionado um padrão de "gaveta" (drawer) pra telas abaixo do breakpoint `md` (768px do Tailwind):
+  - Uma barra fina fixa no topo (`md:hidden`), só visível em mobile, com um botão ☰ (`aria-label="Abrir menu"`) que abre a gaveta.
+  - A `<aside>` ganhou `transform transition-transform duration-300` e a classe condicional `translate-x-0`/`-translate-x-full` conforme o estado `aberta` (novo `useState`) — fora da tela por padrão em mobile, sempre visível em `md:` pra cima (`md:translate-x-0` sobrescreve a transformação nesse breakpoint).
+  - Um fundo escurecido (`bg-black/50`, `md:hidden`) aparece atrás da gaveta quando aberta; clicar nele fecha (`onClick={() => setAberta(false)}`).
+  - Um botão ✕ (`aria-label="Fechar menu"`, também `md:hidden`) dentro do cabeçalho da gaveta.
+  - Cada link de navegação ganhou `onClick={() => setAberta(false)}` — navegar já fecha a gaveta sozinho, sem precisar fechar manual depois.
+- **`frontend/src/app/(dashboard)/layout.tsx`**: `<main>` trocou `ml-64 p-8` fixo por `md:ml-64 p-4 pt-20 md:p-8` — só reserva espaço pra barra em `md:` pra cima; em mobile ocupa a largura toda e ganha um respiro no topo (`pt-20`) pra não ficar embaixo da barra do hambúrguer.
+
+### Testado
+
+Testado ao vivo no navegador (não só lendo código), medindo `getBoundingClientRect()`/`getComputedStyle()` dos elementos reais:
+- Em 375-430px de largura: `<aside>` fica com `x: -256` (fora da tela) por padrão, `<main>` ocupa a largura inteira do viewport sem gerar rolagem horizontal (`document.documentElement.scrollWidth` bate exatamente com `window.innerWidth`). Clique no ☰ → `<aside>` desliza pra `x: 0` e o fundo escurecido aparece. Clique no fundo escurecido → `<aside>` volta pra `x: -256` e o fundo some.
+- Em 1280px de largura: comportamento idêntico ao anterior à mudança — `<aside>` sempre em `x: 0`, `<main>` com `margin-left: 256px`, barra do hambúrguer com `display: none`.
+
+`npx tsc --noEmit`, `npm run build` (todas as rotas compiladas) e `npm run test` (14/14) confirmados limpos. Ver `demandas.md`, item resolvido #27.
