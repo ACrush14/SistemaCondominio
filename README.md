@@ -2,16 +2,17 @@
 
 <div align="center">
 
-![Next.js](https://img.shields.io/badge/Next.js%2015-000000?style=for-the-badge&logo=next.js&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js%2016-000000?style=for-the-badge&logo=next.js&logoColor=white)
 ![React](https://img.shields.io/badge/React%2019-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
-![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
-![IA Mania](https://img.shields.io/badge/IA%20Mania-NLP%20%2F%20Smart%20Assistant-6366f1?style=for-the-badge)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL%20(Neon)-316192?style=for-the-badge&logo=postgresql&logoColor=white)
+![Google Gemini](https://img.shields.io/badge/Google%20Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)
+![Mercado Pago](https://img.shields.io/badge/Mercado%20Pago%20PIX-00B1EA?style=for-the-badge)
+![PWA](https://img.shields.io/badge/PWA-5A0FC8?style=for-the-badge)
 
 <p align="center">
-  <b>Uma plataforma corporativa e residencial moderna para Síndicos, Portaria e Moradores com Inteligência Artificial integrada.</b>
+  <b>Uma plataforma corporativa e residencial moderna para Síndicos, Portaria e Moradores, com Inteligência Artificial integrada e persistência 100% real em PostgreSQL.</b>
 </p>
 
 </div>
@@ -20,177 +21,176 @@
 
 ## 🌟 Visão Geral do Projeto
 
-O **CondoManage** é uma solução de gestão condominial full-stack de última geração concebida para modernizar a rotina de condomínios verticais e horizontais. A plataforma integra em um único ecossistema o painel administrativo do Síndico, a operação de segurança da portaria, o controle interativo de áreas comuns e a **IA Mania**, uma assistente conversacional inteligente capaz de agendar reservas por meio de linguagem natural.
+O **CondoManage** é uma solução de gestão condominial full-stack concebida para modernizar a rotina de condomínios verticais e horizontais. A plataforma integra em um único ecossistema o painel administrativo do Síndico, a operação de segurança da portaria, o controle interativo de áreas comuns, cobrança real via PIX e a **IA Mania**, uma assistente conversacional inteligente (Google Gemini) capaz de agendar reservas por meio de linguagem natural.
 
-🔗 **Aplicação em produção**: [sistemacondominio-nine.vercel.app](https://sistemacondominio-nine.vercel.app) — testável remotamente, no celular ou no PC.
+Todo o backend roda como Route Handlers do Next.js (App Router) sobre um banco **PostgreSQL real** hospedado no [Neon](https://neon.tech) — não há dados fake, mockados ou em memória em nenhuma tela.
+
+🔗 **Aplicação em produção**: [sistemacondominio-nine.vercel.app](https://sistemacondominio-nine.vercel.app) — testável remotamente, no celular ou no PC. Instalável como app (PWA) em Android/iOS/desktop.
 
 ---
 
 ## 📸 Capturas de Tela
 
-| Painel do Síndico | Reservas de Áreas Comuns |
+| Painel do Síndico | Área do Morador (Financeiro/PIX) |
 |---|---|
-| ![Painel do Síndico](docs/screenshots/painel-sindico.png) | ![Reservas](docs/screenshots/reservas.png) |
+| ![Painel do Síndico](docs/screenshots/painel-sindico.png) | ![Área do Morador](docs/screenshots/area-morador.png) |
 
-| Ocorrências e Avisos | Área do Morador (IA) |
+| Central da Portaria | Reservas de Áreas Comuns |
 |---|---|
-| ![Ocorrências](docs/screenshots/ocorrencias.png) | ![Área do Morador](docs/screenshots/area-morador.png) |
+| ![Portaria](docs/screenshots/portaria.png) | ![Reservas](docs/screenshots/reservas.png) |
 
-| Portaria | Moradores & Usuários |
+| Ocorrências e Avisos | Moradores & Usuários |
 |---|---|
-| ![Portaria](docs/screenshots/portaria.png) | ![Usuários](docs/screenshots/usuarios.png) |
+| ![Ocorrências](docs/screenshots/ocorrencias.png) | ![Usuários](docs/screenshots/usuarios.png) |
+
+| Menu responsivo no celular |
+|---|
+| ![Menu mobile](docs/screenshots/mobile-menu.png) |
 
 ---
 
 ## ✨ Principais Funcionalidades
 
-### 👑 1. Painel Executivo do Síndico (Anderson de Lima)
-- **KPIs em Tempo Real**: Monitoramento de taxa de ocupação, ocorrências pendentes, liberação de visitantes e reservas ativas.
-- **Resumo Executivo Gerado por IA**: Análise automática do status geral do condomínio e priorização de demandas.
-- **Gestão de Ocorrências & Avisos**: Acompanhamento detalhado de solicitações com status, prioridade e modal interativo para publicação de novos comunicados gerais.
+### 🔐 1. Autenticação, Multi-Tenant e Controle de Acesso
+- **Login real**: senha conferida com `bcrypt` contra o Postgres, sessão via **JWT** em cookie `httpOnly` (nenhuma tela do dashboard é acessível sem login).
+- **Auto-cadastro público de moradores** (`/cadastro`), com validação de servidor e perfil sempre forçado para `MORADOR` (não dá pra se auto-promover a Síndico).
+- **"Esqueci minha senha"** por e-mail, com código de 6 dígitos, expiração de 15 minutos e proteção contra enumeração de e-mails.
+- **Multi-Condomínio (SaaS) de verdade**: cada conta pertence a um condomínio (`condominio_id`), e todas as 12 tabelas de dados são isoladas por tenant — um usuário de um prédio nunca vê dado de outro. Contas de síndico podem estar vinculadas a mais de um condomínio e alternar entre eles de verdade.
+- **Restrição de telas e rotas por perfil**: Síndico, Porteiro e Morador só acessam o que faz sentido pro papel deles — tentativas fora do escopo são bloqueadas tanto na tela quanto na API (`403`), não é só uma questão de esconder botão.
+- **Soft-delete em toda a base**: revogar um usuário, cancelar uma reserva, excluir uma enquete ou um condomínio nunca apaga o histórico de verdade — só marca como inativo, preservando auditoria e dados relacionados.
 
 ---
 
-### 🤖 2. IA Mania — Assistente Conversacional Inteligente (NLP)
-- **Botão Flutuante Global**: Acessível em qualquer tela do sistema (`🤖 Falar com a IA Mania`).
-- **Agendamento em Linguagem Natural**: A Mania entende frases completas em português, como:
-  > *"Quero reservar para dia 25 das 15 até as 20 para 10 pessoas o salão de festas. vou precisar de cadeiras e mesas"*
-- **Extração Automática de Dados**:
-  - Identifica o espaço (**Salão de Festas**, **Churrasqueira** ou **Piscina**).
-  - Calcula a data exata dentro da janela permitida de 30 dias.
-  - Extrai horários de início e fim, número de convidados e observações/requisitos especiais.
-- **Card Interativo no Chat**: Apresenta os dados extraídos para confirmação e grava diretamente no banco de dados com um clique.
+### 🤖 2. Inteligência Artificial real (Google Gemini)
+Três pontos de IA, todos usando a API real do Gemini (`gemini-2.5-flash`), com limite diário de uso por usuário pra evitar estouro de custo:
+- **IA Mania** — assistente conversacional flutuante, disponível em qualquer tela (`🤖 Falar com a IA Mania`), que entende agendamentos em linguagem natural:
+  > *"Quero reservar o salão de festas dia 25, das 15h às 20h, para 20 pessoas"*
+  
+  Extrai automaticamente área, data, horário e convidados, e **já confere no banco** se a data está dentro da janela permitida e se não há conflito de horário antes de sugerir a confirmação.
+- **Resumo automático de ocorrências**: todo relato de morador ganha um resumo profissional gerado por IA no Livro de Ocorrências.
+- **Assistente Executivo do Síndico**: lê em tempo real ocorrências pendentes, alertas de pânico ativos e encomendas não retiradas do Postgres, e responde perguntas do síndico priorizando o que é mais urgente.
 
 ---
 
-### 📅 3. Gestão Avançada de Reservas (`/reservas`)
-- **Espaços Comuns**:
-  - 🎉 **Salão de Festas** (Capacidade: 50 pessoas)
-  - 🥩 **Churrasqueira** (Capacidade: 25 pessoas)
-  - 🏊 **Piscina** (Capacidade: 20 pessoas)
-- **Agenda Semanal Interativa**: Grade visual de 7 dias com navegação entre semanas e indicador imediato de disponibilidade.
-- **Regra de Agendamento Online (+30 Dias)**:
-  - Agendamentos pelo aplicativo são limitados a uma janela de até 30 dias a partir da data atual.
-  - Alerta oficial orientando que solicitações além de 30 dias devem ser consultadas diretamente com o Síndico.
-- **Controles Precisos de Horário & Observações**:
-  - Seleção independente de **Horário de Início** e **Horário de Fim**.
-  - Opção interativa **"Dia Inteiro"** (estende automaticamente até as 23:00).
-  - Campo dedicado para **Observações / Requisitos Especiais** (música, equipamentos adicionais, etc.).
+### 📅 3. Gestão de Reservas de Áreas Comuns
+- Salão de Festas, Churrasqueira e Piscina/Academia, com agenda semanal visual.
+- Checagem real de conflito de horário no banco (tanto pela IA Mania quanto pela criação manual) e limite de 30 dias de antecedência.
+- Cancelamento é soft-delete: libera o horário pra nova reserva sem apagar o histórico.
 
 ---
 
-### 🏢 4. Controle de Setores & Moradores Personalizável (`/usuarios`)
-- **Personalização Dinâmica da Estrutura**:
-  - Ajuste interativo de **Quantidade de Andares** e **Apartamentos por Andar**.
-  - Cálculo automático e geração em tempo real de todos os setores do residencial.
-- **Organização por Setores**:
-  - 👑 **Setor Executivo (SINDICO)**: Anderson de Lima (Apto 501 / Administração).
-  - 🛡️ **Setor Operacional (PORTEIRO)**: Fulano Alterado (Portaria Principal).
-  - 🏢 **Setores Residenciais (1º ao 5º Andar / Aptos 101 ao 502)**: Alocação estruturada por andar com verificação de conformidade 100%.
+### 💳 4. Financeiro com PIX real (Mercado Pago)
+- 2ª via de boletos com código de barras e **PIX Copia e Cola real**, gerado via API de Orders do Mercado Pago.
+- QR Code do PIX renderizado no navegador a partir do código copia-e-cola.
+- Confirmação de pagamento por **webhook real** (assinatura validada por HMAC), sem depender de o morador clicar em "confirmar sozinho" — dar baixa manual é restrito ao Síndico.
+- Geração automática recorrente de boletos mensais via Vercel Cron.
 
 ---
 
-### 🔐 5. Autenticação Real & Liberação de Visitantes por QR Code
-- **Login de verdade**: senha conferida com `bcrypt` contra o Postgres, sessão via JWT em cookie `httpOnly` — nenhuma tela do dashboard é acessível sem login.
-- **QR Code de Acesso Rápido**: o morador gera um código de liberação (validade 24h) na Área do Morador; a Portaria escaneia com a câmera do dispositivo pra validar e liberar a entrada.
+### 🛡️ 5. Portaria: QR Code, Código Numérico, Pânico e Livro de Plantão
+- **Liberação de visitantes** por QR Code (câmera) ou **código numérico de 6 dígitos** (mais simples de testar entre aparelhos reais), com expiração de 24h.
+- **Botão de Pânico**: alerta 1-clique que dispara um banner vermelho em tempo real no painel do Síndico até ser resolvido.
+- **Livro de Plantão**: passagem de turno entre porteiros com registro de prioridade e confirmação de ciência.
 
 ---
 
-### 🌙 6. Design Premium com Modo Claro e Modo Escuro
-- **Dark Mode Elegante**: Transições suaves (`globals.css`) com paleta de cores *Slate/Navy* profunda (`#0b1323`), cartões translúcidos e alta legibilidade.
-- **Alternador Inteligente no Menu Lateral**: Botão interativo no rodapé da barra lateral exibindo o status atual do tema.
+### 🗳️ 6. Enquetes & Votações em Tempo Real
+- Criação de enquetes pelo Síndico, votação única por unidade (revotar atualiza, não duplica), resultados percentuais ao vivo, encerrar/reabrir/excluir.
+
+---
+
+### 📲 7. Notificações reais por E-mail e WhatsApp
+- E-mail via **Resend**, WhatsApp via **Twilio** — ambos com envio de verdade (não apenas simulado), com auditoria permanente de cada disparo no Postgres.
+
+---
+
+### 📱 8. Aplicação PWA e 100% Responsiva
+- Instalável como app nativo em Android, iOS e Desktop (`manifest.json` + Service Worker com cache offline).
+- Layout responsivo em todas as telas, incluindo a barra lateral: em celular ela vira uma gaveta deslizante acionada por um botão de menu, sem cobrir o conteúdo.
+
+---
+
+### 🌙 9. Design Premium com Modo Claro e Modo Escuro
+- Dark Mode com paleta *Slate/Navy* profunda, cartões translúcidos e alta legibilidade, alternável a qualquer momento pelo botão no rodapé da barra lateral.
 
 ---
 
 ## 🛠️ Arquitetura e Tecnologias
 
-### Frontend (`/frontend`)
-- **Framework**: [Next.js 15](https://nextjs.org/) (App Router & Server/Client Components)
-- **Biblioteca UI**: React 19 + TypeScript
-- **Estilização**: Tailwind CSS 3.4
-- **Ícones & Design System**: Custom SVG Icons & Design Glassmorphism
+Todo o sistema — frontend **e** backend — vive em uma única aplicação **Next.js 16** (App Router), em `frontend/`. Não existe um servidor Express separado: as rotas de API (`frontend/src/app/api/**`) são Route Handlers do próprio Next.js, e é isso que roda tanto em desenvolvimento quanto no deploy da Vercel.
 
-### Backend (`/backend`)
-- **Runtime**: Node.js + ES Modules (`type: "module"`)
-- **Framework API**: Express.js
-- **Banco de Dados**: PostgreSQL (Driver `pg` + Pool de conexões) com fallback em memória persistente para alta disponibilidade
-- **Segurança**: Criptografia de senhas com `bcrypt` e validação CORS
+- **Framework**: [Next.js 16](https://nextjs.org/) (App Router, Route Handlers, `proxy.ts` como middleware de autenticação/autorização)
+- **UI**: React 19 + TypeScript + Tailwind CSS
+- **Banco de dados**: PostgreSQL real via [Neon](https://neon.tech) (`pg.Pool`), com migrações versionadas via `node-pg-migrate`
+- **Autenticação**: JWT (`jsonwebtoken`) em cookie `httpOnly` + `bcryptjs` para hash de senha
+- **IA**: Google Gemini (`@google/genai`)
+- **Pagamentos**: Mercado Pago (API de Orders, PIX real)
+- **Notificações**: Resend (e-mail) + Twilio (WhatsApp)
+- **Monitoramento**: Sentry (`@sentry/nextjs`)
+- **Testes**: Vitest (testes unitários de regras de negócio)
+- **QR Code**: `qrcode` (gerar) + `html5-qrcode` (ler via câmera)
 
-> **Nota sobre o estado atual da arquitetura:** o deploy na Vercel builda apenas a pasta `frontend/` (ver `vercel.json`), então o backend Express acima **não roda em produção hoje**. Quem realmente atende as requisições do app — em dev e no deploy — são as rotas do Next.js em `frontend/src/app/api/*`.
->
-> **Persistência:** Usuários/Moradores, Ocorrências, Reservas, Comunicados, Encomendas, Visitantes e Liberações de Visita (QR Code) já gravam num Postgres real, gerenciado pelo [Neon](https://neon.tech). Módulos adicionais (Enquetes, Financeiro, Botão de Pânico, Notificações, Multi-Tenant) também foram implementados, mas ainda não têm verificação independente ponta a ponta — ver [`CLAUDE.md`](CLAUDE.md) pra detalhes.
->
-> **Autenticação:** login real (senha conferida com `bcrypt` contra o Postgres) e sessão via JWT em cookie `httpOnly` — todas as telas do dashboard exigem login, sem exceção.
->
-> Detalhes completos (schema, decisões, avisos de segurança) em [`CLAUDE.md`](CLAUDE.md).
+> Detalhes completos de schema, decisões de arquitetura, bugs reais encontrados e corrigidos, e histórico de auditorias de segurança estão documentados em [`CLAUDE.md`](CLAUDE.md) — é o changelog técnico vivo do projeto.
 
 ---
 
 ## 🚀 Como Executar o Projeto Localmente
 
 ### Pré-requisitos
-- **Node.js** (v18 ou superior)
-- **PostgreSQL** (opcional para persistência SQL completa; o sistema possui fallback automático caso o banco local não esteja ativo)
+- **Node.js** 18+
+- Uma connection string de um banco **PostgreSQL** (o projeto usa [Neon](https://neon.tech), mas qualquer Postgres serve)
 
 ### 1. Clonar o Repositório
 ```bash
-git clone https://github.com/SEU_USUARIO/SistemaCondominio.git
-cd SistemaCondominio
+git clone https://github.com/ACrush14/SistemaCondominio.git
+cd SistemaCondominio/frontend
 ```
 
-### 2. Executar o Backend API (Porta `3333`)
+### 2. Configurar variáveis de ambiente
+Crie um arquivo `frontend/.env.local` com, no mínimo:
 ```bash
-cd backend
-npm install
-npm run dev
+DATABASE_URL=postgresql://usuario:senha@host/banco?sslmode=require
+JWT_SECRET=uma-string-aleatoria-longa
 ```
-> O servidor API iniciará em `http://localhost:3333` e criará as tabelas/usuários automaticamente no PostgreSQL ou memória.
+As demais variáveis (`GEMINI_API_KEY`, `RESEND_API_KEY`, `MERCADOPAGO_ACCESS_TOKEN`, `TWILIO_*`, `NEXT_PUBLIC_SENTRY_DSN`, `CRON_SECRET`) são opcionais em dev — cada integração falha de forma honesta (sem fingir sucesso) quando a variável correspondente não está configurada.
 
-### 3. Executar o Frontend Next.js (Porta `3001`)
-Em outro terminal:
+### 3. Instalar dependências e rodar as migrações
 ```bash
-cd frontend
 npm install
+npm run migrate:up
+```
+
+### 4. Rodar o servidor de desenvolvimento
+```bash
 npm run dev
 ```
 > Acesse a aplicação em **http://localhost:3001/**.
 
----
-
-## 🌐 Guia de Publicação no GitHub & Deploy na Vercel
-
-### A. Publicar no GitHub
-1. Inicialize o repositório Git (se ainda não estiver inicializado):
-   ```bash
-   git init
-   git add .
-   git commit -m "feat: lançamento do CondoManage com IA Mania e controle de setores"
-   ```
-2. Conecte ao seu repositório no GitHub:
-   ```bash
-   git remote add origin https://github.com/SEU_USUARIO/SistemaCondominio.git
-   git branch -M main
-   git push -u origin main
-   ```
-
-### B. Deploy do Frontend na Vercel (Recomendado)
-1. Acesse [vercel.com](https://vercel.com/) e faça login com sua conta do GitHub.
-2. Clique em **Add New...** > **Project** e importe o repositório `SistemaCondominio`.
-3. Em **Root Directory**, selecione a pasta `frontend`.
-4. Em **Build and Output Settings**:
-   - Framework Preset: **Next.js**
-   - Build Command: `next build`
-5. Clique em **Deploy**. Seu sistema estará online com domínio HTTPS gratuito em poucos segundos!
+### 5. (Opcional) Rodar os testes
+```bash
+npm run test
+```
 
 ---
 
-## 👥 Equipe e Liderança Oficial do Residencial
-- **Síndico Geral**: Anderson de Lima (*Administração — Apto 501*)
-- **Chefe de Portaria**: Fulano Alterado (*Portaria Principal*)
-- **Assistente Virtual**: IA Mania (*Disponível 24/7 via Chatbot NLP*)
+## 🌐 Deploy na Vercel
+
+O projeto já está configurado pra deploy direto na Vercel a partir da pasta `frontend/` (ver `frontend/vercel.json`):
+
+1. Acesse [vercel.com](https://vercel.com/) e importe o repositório.
+2. Em **Root Directory**, selecione `frontend`.
+3. Configure as variáveis de ambiente necessárias (ver seção acima) no ambiente **Production**.
+4. Deploy automático a cada push em `main`.
+
+---
+
+## 👥 Equipe de Referência do Residencial
+
+- **Síndico Geral**: Anderson de Lima (*Administração*)
+- **Assistente Virtual**: IA Mania (*Disponível 24/7 via Chatbot NLP, powered by Google Gemini*)
 
 ---
 
 <div align="center">
-  <p>Desenvolvido com excelência para modernizar a gestão de condomínios.</p>
+  <p>Desenvolvido como projeto de aprendizado prático de integração full-stack.</p>
 </div>
