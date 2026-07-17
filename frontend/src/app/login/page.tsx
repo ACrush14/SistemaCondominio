@@ -59,6 +59,15 @@ export default function LoginPage() {
           <p className="text-neutral-dark text-sm mt-1">Acesse sua conta para continuar.</p>
         </div>
 
+        <a
+          href="/apresentacao"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 w-full bg-primary/10 hover:bg-primary/20 text-primary font-semibold py-3 rounded-xl mb-5 transition-all border border-primary/20"
+        >
+          <span>🎬</span> Ver Apresentação em Vídeo
+        </a>
+
         {erro && (
           <div className="bg-tertiary/10 border border-tertiary/20 text-tertiary p-3 rounded-xl mb-5 text-sm font-medium flex items-center gap-2">
             <span>⚠️</span>

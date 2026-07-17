@@ -473,6 +473,14 @@ export default function PainelSindicoPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          <a
+            href="/apresentacao"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm flex items-center gap-2 cursor-pointer"
+          >
+            <span>🎬</span> Apresentação em Vídeo
+          </a>
           <button
             onClick={() => {
               carregarCondominios();
