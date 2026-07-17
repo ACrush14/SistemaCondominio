@@ -1170,3 +1170,25 @@ Testado ao vivo no navegador (não só lendo código), medindo `getBoundingClien
 - Em 1280px de largura: comportamento idêntico ao anterior à mudança — `<aside>` sempre em `x: 0`, `<main>` com `margin-left: 256px`, barra do hambúrguer com `display: none`.
 
 `npx tsc --noEmit`, `npm run build` (todas as rotas compiladas) e `npm run test` (14/14) confirmados limpos. Ver `demandas.md`, item resolvido #27.
+
+---
+
+## Página pública de apresentação (`/apresentacao`) + vídeo de demonstração (2026-07-16)
+
+Pedido do usuário: ter o pitch visual (feito antes como artifact do Claude, só visível pra ele) publicado no próprio site em produção, pra poder mandar o link pra qualquer pessoa sem depender de uma sessão do claude.ai. Também queria o vídeo de demonstração (gravado com Playwright, ver contexto da conversa) facilmente acessível.
+
+### O que foi criado
+
+- **`frontend/src/app/apresentacao/page.tsx`** (nova rota): reaproveita o conteúdo e o design do dossiê ("Art. 1º, Art. 2º..." no estilo de convenção de condomínio, paleta navy+latão, fonte Fraunces) construído no artifact, mas como página real do Next.js — sem nada em base64, tudo servindo arquivos estáticos de verdade.
+- **`frontend/public/apresentacao/`**: vídeo de demonstração real (`demo.mp4`, 33s, gravado com Playwright navegando o app de verdade — login, reservas, ocorrências, portaria, financeiro/PIX, enquetes e o menu mobile em gaveta), pôster do vídeo, e os 4 prints usados como "exhibits" no texto.
+- **`frontend/public/fonts/fraunces-600.woff2`**: a fonte de exibição usada nos títulos, auto-hospedada (não depende de CDN externo).
+
+### Por que essa rota não exige login
+
+`frontend/src/proxy.ts` só intercepta os paths listados em `config.matcher` (`/`, `/reservas`, `/ocorrencias`, `/area-morador`, `/portaria`, `/usuarios`, `/moradores`, `/api/*`) — `/apresentacao` **não está nessa lista**, então o middleware nem roda pra essa rota, e ela fica pública por padrão sem precisar de nenhuma exceção nova na lista de rotas públicas. Mesma lógica pros arquivos em `public/apresentacao/*` (vídeo, prints, pôster) — arquivo estático fora de `_next`, nunca passa pelo proxy.
+
+### Testado
+
+Testado ao vivo no navegador **sem sessão ativa**: `http://localhost:3001/apresentacao` carrega direto (sem redirecionar pra `/login`), vídeo com `readyState: 4` (decodificado, tocável), todas as 4 imagens com `naturalWidth` correto, fonte Fraunces confirmada carregada (`document.fonts.check(...)` retornando `true`). `npx tsc --noEmit`, `npm run build` (rota compilada como estática, `○ /apresentacao`) e `npm run test` (14/14) confirmados limpos.
+
+Depois do deploy, a URL pra compartilhar é `https://sistemacondominio-nine.vercel.app/apresentacao`, e o vídeo isolado fica em `https://sistemacondominio-nine.vercel.app/apresentacao/demo.mp4` — link direto, sem precisar abrir a página inteira, útil pra anexar em WhatsApp/e-mail.
