@@ -218,12 +218,12 @@ export default function ApresentacaoPage() {
                 <span className="janela-ponto"></span><span className="janela-ponto"></span><span className="janela-ponto"></span>
                 <span className="janela-rotulo">sistemacondominio-nine.vercel.app</span>
               </div>
-              <video controls muted loop playsInline preload="metadata" poster="/apresentacao/demo-poster.jpg">
+              <video controls playsInline preload="metadata" poster="/apresentacao/demo-poster.jpg">
                 <source src="/apresentacao/demo.mp4" type="video/mp4" />
               </video>
               <div className="janela-legenda">
-                <span>▶ Demonstração real — login, reservas, portaria, financeiro e o menu mobile, sem cortes de edição.</span>
-                <span>0:33</span>
+                <span>▶ Pitch narrado — arquitetura multi-tenant, IA real e pagamento PIX, direto da tela do sistema.</span>
+                <span>1:04</span>
               </div>
             </div>
 
