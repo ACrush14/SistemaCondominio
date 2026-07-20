@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../lib/store/db";
-import { obterCondominioId } from "../../../lib/tenant";
+import { obterCondominioId, obterUsuarioId } from "../../../lib/tenant";
 import {
   ReservaRow,
   comHorarioExibicao,
@@ -8,7 +8,9 @@ import {
   contarReservas,
   calcularDiferencaDias,
   verificarConflitoReserva,
+  listarReservasCanceladas,
 } from "../../../lib/store/reservasDb";
+import { registrarAuditoria } from "../../../lib/auditoria";
 
 export async function GET(req: Request) {
   try {
@@ -29,6 +31,9 @@ export async function GET(req: Request) {
 
     const log = await listarReservas(limite, condominioId, offset);
     const total = await contarReservas(condominioId);
+    const canceladas = url.searchParams.get("incluirCanceladas") === "true"
+      ? await listarReservasCanceladas(condominioId)
+      : undefined;
 
     return NextResponse.json({
       reservas: log,
@@ -37,6 +42,7 @@ export async function GET(req: Request) {
       offset,
       limite,
       paginas: Math.ceil(total / limite),
+      ...(canceladas ? { canceladas } : {}),
     });
   } catch (erro: unknown) {
     console.error("Erro ao listar reservas:", erro);
@@ -112,6 +118,15 @@ export async function POST(req: Request) {
         condominioId,
       ]
     );
+
+    await registrarAuditoria({
+      condominioId,
+      usuarioId: obterUsuarioId(req),
+      acao: "CRIAR",
+      entidade: "reserva",
+      entidadeId: resultado.rows[0].id,
+      detalhes: { area: body.area, data_reserva: body.data_reserva },
+    });
 
     return NextResponse.json(
       {

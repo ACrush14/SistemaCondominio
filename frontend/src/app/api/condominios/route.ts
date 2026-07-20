@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../lib/store/db";
-import { listarCondominios, garantirTabelaCondominios } from "../../../lib/store/condominiosDb";
+import { listarCondominios, listarCondominiosExcluidos, garantirTabelaCondominios } from "../../../lib/store/condominiosDb";
+import { obterUsuarioId } from "../../../lib/tenant";
+import { registrarAuditoria } from "../../../lib/auditoria";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    if (searchParams.get("excluidos") === "true") {
+      const excluidos = await listarCondominiosExcluidos();
+      return NextResponse.json(excluidos);
+    }
     const lista = await listarCondominios();
     return NextResponse.json(lista);
   } catch (erro: unknown) {
@@ -34,6 +41,15 @@ export async function POST(req: Request) {
        RETURNING id, nome, slug`,
       [nome, slug, cnpj, endereco, total_unidades, plano]
     );
+
+    await registrarAuditoria({
+      condominioId: insert.rows[0].id,
+      usuarioId: obterUsuarioId(req),
+      acao: "CRIAR",
+      entidade: "condominio",
+      entidadeId: insert.rows[0].id,
+      detalhes: { nome, slug },
+    });
 
     const lista = await listarCondominios();
     return NextResponse.json(

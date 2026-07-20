@@ -161,3 +161,28 @@ export async function excluirEnquete(
   );
   return (res.rowCount ?? 0) > 0;
 }
+
+// Lista enquetes excluídas (soft-delete) — só usado na tela de restauração.
+export async function listarEnquetesExcluidas(condominioId = 1) {
+  const res = await pool.query(
+    `SELECT id, titulo, TO_CHAR(deletado_em, 'DD/MM/YYYY HH24:MI') AS excluida_em
+     FROM enquetes
+     WHERE condominio_id = $1 AND deletado_em IS NOT NULL
+     ORDER BY deletado_em DESC`,
+    [condominioId]
+  );
+  return res.rows;
+}
+
+// Restauração (idempotente): só afeta uma enquete que esteja de fato excluída no mesmo
+// condomínio. Os votos nunca foram apagados (só a enquete ficava invisível), então
+// reaparecem exatamente como estavam.
+export async function restaurarEnquete(id: number, condominioId: number): Promise<boolean> {
+  const res = await pool.query(
+    `UPDATE enquetes SET deletado_em = NULL, deletado_por = NULL
+     WHERE id = $1 AND condominio_id = $2 AND deletado_em IS NOT NULL
+     RETURNING id`,
+    [id, condominioId]
+  );
+  return (res.rowCount ?? 0) > 0;
+}

@@ -47,6 +47,12 @@ export default function PainelSindicoPage() {
   const [enquetes, setEnquetes] = useState<EnqueteDashboard[]>([]);
   const [alertasPanico, setAlertasPanico] = useState<{ id: number; porteiro_nome: string; tipo_emergencia: string; criado_em: string; status: string }[]>([]);
 
+  // Restauração de enquetes excluídas (soft-delete)
+  const [verEnquetesExcluidas, setVerEnquetesExcluidas] = useState(false);
+  const [enquetesExcluidas, setEnquetesExcluidas] = useState<{ id: number; titulo: string; excluida_em: string }[]>([]);
+  const [carregandoEnquetesExcluidas, setCarregandoEnquetesExcluidas] = useState(false);
+  const [restaurandoEnqueteId, setRestaurandoEnqueteId] = useState<number | null>(null);
+
   const carregarEnquetes = () => {
     fetch("/api/condominio/enquetes")
       .then((res) => res.json())
@@ -55,6 +61,46 @@ export default function PainelSindicoPage() {
         console.error("Erro ao carregar enquetes:", err);
         setMensagemErro("Não foi possível carregar as enquetes.");
       });
+  };
+
+  const carregarEnquetesExcluidas = () => {
+    setCarregandoEnquetesExcluidas(true);
+    fetch("/api/condominio/enquetes?excluidas=true")
+      .then((res) => res.json())
+      .then((data) => setEnquetesExcluidas(Array.isArray(data) ? data : []))
+      .catch((err) => {
+        console.error("Erro ao carregar enquetes excluídas:", err);
+        setMensagemErro("Não foi possível carregar as enquetes excluídas.");
+      })
+      .finally(() => setCarregandoEnquetesExcluidas(false));
+  };
+
+  const toggleVerEnquetesExcluidas = () => {
+    const proximoValor = !verEnquetesExcluidas;
+    setVerEnquetesExcluidas(proximoValor);
+    if (proximoValor) carregarEnquetesExcluidas();
+  };
+
+  const restaurarEnquete = async (id: number) => {
+    setRestaurandoEnqueteId(id);
+    try {
+      const res = await fetch(`/api/condominio/enquetes/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acao: "restaurar" }),
+      });
+      if (!res.ok) {
+        const dados = await res.json().catch(() => ({}));
+        setMensagemErro(dados.erro || "Erro ao restaurar enquete.");
+        return;
+      }
+      carregarEnquetesExcluidas();
+      carregarEnquetes();
+    } catch (err) {
+      setMensagemErro("Falha de comunicação ao restaurar enquete.");
+    } finally {
+      setRestaurandoEnqueteId(null);
+    }
   };
 
   const carregarPanico = () => {
@@ -234,6 +280,50 @@ export default function PainelSindicoPage() {
   const [criandoPredio, setCriandoPredio] = useState(false);
   const [predioEmEdicao, setPredioEmEdicao] = useState<CondominioItem | null>(null);
   const [excluindoPredioId, setExcluindoPredioId] = useState<number | null>(null);
+
+  // Restauração de condomínios excluídos (soft-delete)
+  const [verPrediosExcluidos, setVerPrediosExcluidos] = useState(false);
+  const [prediosExcluidos, setPrediosExcluidos] = useState<{ id: number; nome: string; slug: string; excluido_em: string }[]>([]);
+  const [carregandoPrediosExcluidos, setCarregandoPrediosExcluidos] = useState(false);
+  const [restaurandoPredioId, setRestaurandoPredioId] = useState<number | null>(null);
+
+  const carregarPrediosExcluidos = () => {
+    setCarregandoPrediosExcluidos(true);
+    fetch("/api/condominios?excluidos=true")
+      .then((res) => res.json())
+      .then((data) => setPrediosExcluidos(Array.isArray(data) ? data : []))
+      .catch(() => setMensagemErro("Não foi possível carregar os prédios excluídos."))
+      .finally(() => setCarregandoPrediosExcluidos(false));
+  };
+
+  const toggleVerPrediosExcluidos = () => {
+    const proximoValor = !verPrediosExcluidos;
+    setVerPrediosExcluidos(proximoValor);
+    if (proximoValor) carregarPrediosExcluidos();
+  };
+
+  const restaurarPredio = async (id: number) => {
+    setRestaurandoPredioId(id);
+    try {
+      const res = await fetch(`/api/condominios/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acao: "restaurar" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMensagemAviso(data.erro || "Erro ao restaurar prédio.");
+        return;
+      }
+      setCondominios(data.condominios || []);
+      carregarPrediosExcluidos();
+      setMensagemAviso("Prédio restaurado com sucesso!");
+    } catch (_err) {
+      setMensagemAviso("Falha de comunicação ao restaurar prédio.");
+    } finally {
+      setRestaurandoPredioId(null);
+    }
+  };
 
   const carregarCondominios = () => {
     fetch("/api/condominios")
@@ -730,13 +820,57 @@ export default function PainelSindicoPage() {
                   Consulte os resultados e gerencie votações do condomínio
                 </p>
               </div>
-              <button
-                onClick={() => setModalEnquete(true)}
-                className="text-xs font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-3.5 py-1.5 rounded-xl transition-colors"
-              >
-                + NOVA ENQUETE
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={toggleVerEnquetesExcluidas}
+                  className={`text-xs font-bold px-3.5 py-1.5 rounded-xl transition-colors ${
+                    verEnquetesExcluidas
+                      ? "bg-amber-100 hover:bg-amber-200 text-amber-800"
+                      : "bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                  }`}
+                >
+                  {verEnquetesExcluidas ? "🙈 Ocultar excluídas" : "🗄️ Ver excluídas"}
+                </button>
+                <button
+                  onClick={() => setModalEnquete(true)}
+                  className="text-xs font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-3.5 py-1.5 rounded-xl transition-colors"
+                >
+                  + NOVA ENQUETE
+                </button>
+              </div>
             </div>
+
+            {verEnquetesExcluidas && (
+              <div className="bg-amber-50/60 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/40 rounded-2xl p-4 space-y-2">
+                <h3 className="text-xs font-bold text-amber-900 dark:text-amber-300 uppercase">
+                  Enquetes excluídas ({enquetesExcluidas.length})
+                </h3>
+                {carregandoEnquetesExcluidas ? (
+                  <p className="text-xs text-amber-700 dark:text-amber-400">Carregando...</p>
+                ) : enquetesExcluidas.length === 0 ? (
+                  <p className="text-xs text-amber-700 dark:text-amber-400">Nenhuma enquete excluída.</p>
+                ) : (
+                  enquetesExcluidas.map((e) => (
+                    <div
+                      key={e.id}
+                      className="flex items-center justify-between bg-white dark:bg-[#162238] rounded-xl p-3 border border-amber-100 dark:border-amber-900/30"
+                    >
+                      <div>
+                        <p className="font-bold text-sm text-[#0A2540] dark:text-white">{e.titulo}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Excluída em {e.excluida_em}</p>
+                      </div>
+                      <button
+                        onClick={() => restaurarEnquete(e.id)}
+                        disabled={restaurandoEnqueteId === e.id}
+                        className="bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-bold px-3 py-1.5 rounded-xl text-xs transition-all disabled:opacity-50"
+                      >
+                        {restaurandoEnqueteId === e.id ? "Restaurando..." : "↩ Restaurar"}
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
 
             <div className="space-y-5">
               {enquetes.map((e) => (
@@ -1253,9 +1387,52 @@ export default function PainelSindicoPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Lista de Condomínios e Seleção */}
               <div className="space-y-3">
-                <h4 className="font-bold text-sm text-[#0A2540] dark:text-white">
-                  🏢 Prédios Cadastrados (Selecione para Ativar)
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-sm text-[#0A2540] dark:text-white">
+                    🏢 Prédios Cadastrados (Selecione para Ativar)
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={toggleVerPrediosExcluidos}
+                    className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-colors ${
+                      verPrediosExcluidos
+                        ? "bg-amber-100 hover:bg-amber-200 text-amber-800"
+                        : "bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                    }`}
+                  >
+                    {verPrediosExcluidos ? "🙈 Ocultar excluídos" : "🗄️ Ver excluídos"}
+                  </button>
+                </div>
+
+                {verPrediosExcluidos && (
+                  <div className="bg-amber-50/60 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/40 rounded-2xl p-3 space-y-2">
+                    {carregandoPrediosExcluidos ? (
+                      <p className="text-[11px] text-amber-700 dark:text-amber-400">Carregando...</p>
+                    ) : prediosExcluidos.length === 0 ? (
+                      <p className="text-[11px] text-amber-700 dark:text-amber-400">Nenhum prédio excluído.</p>
+                    ) : (
+                      prediosExcluidos.map((p) => (
+                        <div
+                          key={p.id}
+                          className="flex items-center justify-between bg-white dark:bg-[#162238] rounded-xl p-2.5 border border-amber-100 dark:border-amber-900/30"
+                        >
+                          <div>
+                            <p className="font-bold text-xs text-[#0A2540] dark:text-white">{p.nome}</p>
+                            <p className="text-[10px] text-gray-500 dark:text-gray-400">Excluído em {p.excluido_em}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => restaurarPredio(p.id)}
+                            disabled={restaurandoPredioId === p.id}
+                            className="bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-bold px-2.5 py-1 rounded-lg text-[10px] transition-all disabled:opacity-50"
+                          >
+                            {restaurandoPredioId === p.id ? "Restaurando..." : "↩ Restaurar"}
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
   {condominios.map((c) => {

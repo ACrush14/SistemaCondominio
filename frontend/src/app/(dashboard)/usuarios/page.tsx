@@ -21,6 +21,12 @@ export default function UsuariosPage() {
   const [carregando, setCarregando] = useState(true);
   const [modalAberto, setModalAberto] = useState(false);
 
+  // Restauração de contas desativadas (soft-delete)
+  const [verDesativados, setVerDesativados] = useState(false);
+  const [usuariosInativos, setUsuariosInativos] = useState<Usuario[]>([]);
+  const [carregandoInativos, setCarregandoInativos] = useState(false);
+  const [restaurandoId, setRestaurandoId] = useState<string | null>(null);
+
   // Estados do Modal de Vínculos SaaS
   const [usuarioVinculoSelecionado, setUsuarioVinculoSelecionado] = useState<Usuario | null>(null);
   const [modalVinculosAberto, setModalVinculosAberto] = useState(false);
@@ -101,6 +107,47 @@ export default function UsuariosPage() {
     } catch (err) {
       setErroModal("Falha de comunicação com o servidor.");
       setSalvando(false);
+    }
+  };
+
+  const buscarInativos = useCallback(async () => {
+    try {
+      setCarregandoInativos(true);
+      const resposta = await fetch("/api/usuarios?incluirInativos=true");
+      const dados = await resposta.json();
+      setUsuariosInativos(dados.inativos || []);
+    } catch (err) {
+      setErro("Não foi possível carregar as contas desativadas.");
+    } finally {
+      setCarregandoInativos(false);
+    }
+  }, []);
+
+  const toggleVerDesativados = () => {
+    const proximoValor = !verDesativados;
+    setVerDesativados(proximoValor);
+    if (proximoValor) buscarInativos();
+  };
+
+  const restaurarUsuario = async (id: string) => {
+    setRestaurandoId(id);
+    try {
+      const resposta = await fetch(`/api/usuarios/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acao: "reativar" }),
+      });
+      const dados = await resposta.json();
+      if (!resposta.ok) {
+        setErro(dados.erro || "Erro ao restaurar usuário.");
+        return;
+      }
+      await buscarInativos();
+      await buscarUsuarios();
+    } catch (err) {
+      setErro("Falha de comunicação ao restaurar usuário.");
+    } finally {
+      setRestaurandoId(null);
     }
   };
 
@@ -281,6 +328,16 @@ export default function UsuariosPage() {
 
         <div className="flex items-center gap-3">
           <button
+            onClick={toggleVerDesativados}
+            className={`px-5 py-2.5 rounded-xl font-semibold transition-colors shadow-sm text-sm border ${
+              verDesativados
+                ? "bg-amber-50 dark:bg-amber-900/30 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300"
+                : "bg-white dark:bg-[#162238] border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300"
+            }`}
+          >
+            {verDesativados ? "🙈 Ocultar desativados" : "🗄️ Ver desativados"}
+          </button>
+          <button
             onClick={() => setModalAberto(true)}
             className="bg-[#0A2540] dark:bg-blue-600 hover:bg-[#0A2540]/90 text-white px-5 py-2.5 rounded-xl font-semibold transition-colors shadow-sm text-sm"
           >
@@ -288,6 +345,40 @@ export default function UsuariosPage() {
           </button>
         </div>
       </div>
+
+      {verDesativados && (
+        <div className="bg-amber-50/60 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/40 rounded-3xl p-5 space-y-3">
+          <h3 className="text-sm font-bold text-amber-900 dark:text-amber-300">
+            🗄️ Contas desativadas ({usuariosInativos.length})
+          </h3>
+          {carregandoInativos ? (
+            <p className="text-xs text-amber-700 dark:text-amber-400">Carregando...</p>
+          ) : usuariosInativos.length === 0 ? (
+            <p className="text-xs text-amber-700 dark:text-amber-400">Nenhuma conta desativada neste condomínio.</p>
+          ) : (
+            <div className="space-y-2">
+              {usuariosInativos.map((u) => (
+                <div
+                  key={u.id}
+                  className="flex items-center justify-between bg-white dark:bg-[#162238] rounded-2xl p-3 border border-amber-100 dark:border-amber-900/30"
+                >
+                  <div>
+                    <p className="font-bold text-sm text-[#0A2540] dark:text-white">{u.nome}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{u.email} · {u.perfil} · {u.unidade || "-"}</p>
+                  </div>
+                  <button
+                    onClick={() => restaurarUsuario(u.id)}
+                    disabled={restaurandoId === u.id}
+                    className="bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-bold px-3 py-1.5 rounded-xl text-xs transition-all disabled:opacity-50"
+                  >
+                    {restaurandoId === u.id ? "Restaurando..." : "↩ Restaurar"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {erro && (
         <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-2xl font-medium text-sm">

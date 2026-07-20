@@ -14,6 +14,12 @@ const RESTRICOES_POR_PERFIL: { prefixo: string; perfis: string[] }[] = [
   { prefixo: "/api/usuarios", perfis: ["SINDICO"] },
   { prefixo: "/moradores", perfis: ["SINDICO"] },
   { prefixo: "/portaria", perfis: ["SINDICO", "PORTEIRO"] },
+  // APIs operacionais da portaria: só quem de fato mexe nisso (síndico acompanha/resolve
+  // pânico, porteiro opera tudo). Não inclui /api/condominio/visitas (sem sufixo), porque
+  // o morador precisa gerar o próprio código de liberação por ali.
+  { prefixo: "/api/condominio/panico", perfis: ["SINDICO", "PORTEIRO"] },
+  { prefixo: "/api/condominio/livro-turno", perfis: ["SINDICO", "PORTEIRO"] },
+  { prefixo: "/api/condominio/visitas/validar", perfis: ["SINDICO", "PORTEIRO"] },
 ];
 
 function perfilPermitido(pathname: string, perfil: string | undefined): boolean {

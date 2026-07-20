@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { pool } from "../../../lib/store/db";
-import { obterCondominioId } from "../../../lib/tenant";
-import { listarUsuarios, contarUsuarios } from "../../../lib/store/usuariosDb";
+import { obterCondominioId, obterUsuarioId } from "../../../lib/tenant";
+import { listarUsuarios, contarUsuarios, listarUsuariosInativos } from "../../../lib/store/usuariosDb";
+import { registrarAuditoria } from "../../../lib/auditoria";
 
 export async function GET(req: Request) {
   try {
@@ -23,6 +24,9 @@ export async function GET(req: Request) {
 
     const log = await listarUsuarios(limite, condominioId, offset);
     const total = await contarUsuarios(condominioId);
+    const inativos = url.searchParams.get("incluirInativos") === "true"
+      ? await listarUsuariosInativos(condominioId)
+      : undefined;
 
     return NextResponse.json({
       usuarios: log,
@@ -31,6 +35,7 @@ export async function GET(req: Request) {
       offset,
       limite,
       paginas: Math.ceil(total / limite),
+      ...(inativos ? { inativos } : {}),
     });
   } catch (erro: unknown) {
     console.error("Erro ao listar usuários:", erro);
@@ -59,6 +64,15 @@ export async function POST(req: Request) {
        ON CONFLICT DO NOTHING`,
       [resultado.rows[0].id, condominioId]
     );
+
+    await registrarAuditoria({
+      condominioId,
+      usuarioId: obterUsuarioId(req),
+      acao: "CRIAR",
+      entidade: "usuario",
+      entidadeId: resultado.rows[0].id,
+      detalhes: { nome: body.nome, email: body.email, perfil: body.perfil || "MORADOR" },
+    });
 
     return NextResponse.json(resultado.rows[0], { status: 201 });
   } catch (erro: unknown) {

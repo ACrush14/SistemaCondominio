@@ -95,6 +95,12 @@ export default function ReservasPage() {
   const [mensagemSucesso, setMensagemSucesso] = useState("");
   const [erro, setErro] = useState("");
 
+  // Restauração de reservas canceladas (soft-delete)
+  const [verCanceladas, setVerCanceladas] = useState(false);
+  const [reservasCanceladas, setReservasCanceladas] = useState<Reserva[]>([]);
+  const [carregandoCanceladas, setCarregandoCanceladas] = useState(false);
+  const [restaurandoId, setRestaurandoId] = useState<string | null>(null);
+
   // Modal "+ Nova Reserva"
   const [modalAberto, setModalAberto] = useState(false);
   const [novaArea, setNovaArea] = useState("Salão de Festas");
@@ -187,6 +193,49 @@ export default function ReservasPage() {
     }
   };
 
+  const buscarCanceladas = useCallback(async () => {
+    setCarregandoCanceladas(true);
+    try {
+      const res = await fetch("/api/reservas?incluirCanceladas=true");
+      const dados = await res.json();
+      setReservasCanceladas(dados.canceladas || []);
+    } catch (err) {
+      setErro("Não foi possível carregar as reservas canceladas.");
+    } finally {
+      setCarregandoCanceladas(false);
+    }
+  }, []);
+
+  const toggleVerCanceladas = () => {
+    const proximoValor = !verCanceladas;
+    setVerCanceladas(proximoValor);
+    if (proximoValor) buscarCanceladas();
+  };
+
+  const restaurarReserva = async (id: string) => {
+    setRestaurandoId(id);
+    setErro("");
+    try {
+      const res = await fetch(`/api/reservas/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acao: "reativar" }),
+      });
+      const dados = await res.json();
+      if (!res.ok) {
+        setErro(dados.erro || "Erro ao restaurar reserva.");
+        return;
+      }
+      setMensagemSucesso(dados.mensagem || "Reserva restaurada com sucesso!");
+      await buscarCanceladas();
+      await buscarReservas();
+    } catch (err) {
+      setErro("Falha de comunicação ao restaurar reserva.");
+    } finally {
+      setRestaurandoId(null);
+    }
+  };
+
   const handleCancelarReserva = async (id: string) => {
     if (!confirm("Deseja realmente cancelar esta reserva da base de dados?")) return;
     try {
@@ -234,6 +283,16 @@ export default function ReservasPage() {
         </div>
         <div className="flex items-center gap-3">
           <button
+            onClick={toggleVerCanceladas}
+            className={`px-5 py-2.5 rounded-xl font-semibold transition-colors shadow-sm text-sm border ${
+              verCanceladas
+                ? "bg-amber-50 dark:bg-amber-900/30 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300"
+                : "bg-white dark:bg-[#162238] border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300"
+            }`}
+          >
+            {verCanceladas ? "🙈 Ocultar canceladas" : "🗄️ Ver canceladas"}
+          </button>
+          <button
             onClick={() => {
               setNovaArea(areaSelecionada);
               setNovaData(dataSelecionadaISO);
@@ -245,6 +304,42 @@ export default function ReservasPage() {
           </button>
         </div>
       </div>
+
+      {verCanceladas && (
+        <div className="bg-amber-50/60 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/40 rounded-3xl p-5 space-y-3">
+          <h3 className="text-sm font-bold text-amber-900 dark:text-amber-300">
+            🗄️ Reservas canceladas ({reservasCanceladas.length})
+          </h3>
+          {carregandoCanceladas ? (
+            <p className="text-xs text-amber-700 dark:text-amber-400">Carregando...</p>
+          ) : reservasCanceladas.length === 0 ? (
+            <p className="text-xs text-amber-700 dark:text-amber-400">Nenhuma reserva cancelada neste condomínio.</p>
+          ) : (
+            <div className="space-y-2">
+              {reservasCanceladas.map((r) => (
+                <div
+                  key={r.id}
+                  className="flex items-center justify-between bg-white dark:bg-[#162238] rounded-2xl p-3 border border-amber-100 dark:border-amber-900/30"
+                >
+                  <div>
+                    <p className="font-bold text-sm text-[#0A2540] dark:text-white">
+                      {r.area} — {r.data_reserva} ({r.horario})
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{r.morador}</p>
+                  </div>
+                  <button
+                    onClick={() => restaurarReserva(r.id)}
+                    disabled={restaurandoId === r.id}
+                    className="bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-bold px-3 py-1.5 rounded-xl text-xs transition-all disabled:opacity-50"
+                  >
+                    {restaurandoId === r.id ? "Restaurando..." : "↩ Restaurar"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Box de Regra dos Próximos 30 Dias */}
       <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/60 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-blue-900 dark:text-blue-200">

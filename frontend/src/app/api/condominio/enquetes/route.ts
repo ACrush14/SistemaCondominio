@@ -1,13 +1,19 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../../lib/store/db";
-import { garantirTabelasEnquetes, formatarEnquetes } from "../../../../lib/store/enquetesDb";
-import { obterCondominioId } from "../../../../lib/tenant";
+import { garantirTabelasEnquetes, formatarEnquetes, listarEnquetesExcluidas } from "../../../../lib/store/enquetesDb";
+import { obterCondominioId, obterUsuarioId } from "../../../../lib/tenant";
+import { registrarAuditoria } from "../../../../lib/auditoria";
 
 export async function GET(req: Request) {
   try {
     const condominioId = obterCondominioId(req);
     const { searchParams } = new URL(req.url);
     const unidade = searchParams.get("unidade");
+
+    if (searchParams.get("excluidas") === "true") {
+      const excluidas = await listarEnquetesExcluidas(condominioId);
+      return NextResponse.json(excluidas);
+    }
 
     const lista = await formatarEnquetes(unidade, condominioId);
     return NextResponse.json(lista);
@@ -41,6 +47,15 @@ export async function POST(req: Request) {
         condominioId,
       ]
     );
+
+    await registrarAuditoria({
+      condominioId,
+      usuarioId: obterUsuarioId(req),
+      acao: "CRIAR",
+      entidade: "enquete",
+      entidadeId: resultado.rows[0].id,
+      detalhes: { titulo: body.titulo },
+    });
 
     const lista = await formatarEnquetes(null, condominioId);
     const criada = lista.find((e) => e.id === resultado.rows[0].id) || lista[0];

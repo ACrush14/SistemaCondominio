@@ -3,8 +3,10 @@ import {
   listarCondominios,
   atualizarCondominio,
   excluirCondominio,
+  restaurarCondominio,
 } from "../../../../lib/store/condominiosDb";
 import { obterUsuarioId } from "../../../../lib/tenant";
+import { registrarAuditoria } from "../../../../lib/auditoria";
 
 export async function PATCH(
   req: Request,
@@ -18,7 +20,34 @@ export async function PATCH(
     }
 
     const body = await req.json();
+
+    if (body.acao === "restaurar") {
+      const restaurado = await restaurarCondominio(numId);
+      if (!restaurado) {
+        return NextResponse.json({ erro: "Condomínio não encontrado ou já está ativo." }, { status: 404 });
+      }
+      await registrarAuditoria({
+        condominioId: numId,
+        usuarioId: obterUsuarioId(req),
+        acao: "RESTAURAR",
+        entidade: "condominio",
+        entidadeId: numId,
+      });
+      const lista = await listarCondominios();
+      return NextResponse.json({ sucesso: true, condominios: lista });
+    }
+
     const atualizado = await atualizarCondominio(numId, body);
+
+    await registrarAuditoria({
+      condominioId: numId,
+      usuarioId: obterUsuarioId(req),
+      acao: "ATUALIZAR",
+      entidade: "condominio",
+      entidadeId: numId,
+      detalhes: body,
+    });
+
     const lista = await listarCondominios();
 
     return NextResponse.json({
@@ -44,6 +73,15 @@ export async function DELETE(
     }
 
     await excluirCondominio(numId, obterUsuarioId(req));
+
+    await registrarAuditoria({
+      condominioId: numId,
+      usuarioId: obterUsuarioId(req),
+      acao: "EXCLUIR",
+      entidade: "condominio",
+      entidadeId: numId,
+    });
+
     const lista = await listarCondominios();
 
     return NextResponse.json({

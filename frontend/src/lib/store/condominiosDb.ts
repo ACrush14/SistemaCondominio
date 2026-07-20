@@ -126,3 +126,27 @@ export async function excluirCondominio(id: number, deletadoPor: number | null =
 
   return { sucesso: true };
 }
+
+// Lista condomínios excluídos (soft-delete) — só usado na tela de restauração.
+export async function listarCondominiosExcluidos() {
+  await garantirTabelaCondominios();
+  const res = await pool.query(
+    `SELECT id, nome, slug, TO_CHAR(deletado_em, 'DD/MM/YYYY HH24:MI') AS excluido_em
+     FROM condominios WHERE deletado_em IS NOT NULL ORDER BY deletado_em DESC`
+  );
+  return res.rows;
+}
+
+// Restauração (idempotente): reaparece no catálogo com o slug original — por isso o
+// índice único de slug é parcial (só entre os não-excluídos), então não há conflito
+// mesmo que outro condomínio novo tenha reaproveitado o mesmo slug nesse meio-tempo...
+// exceto se reaproveitou mesmo, caso em que o UPDATE abaixo falha com 23505 (tratado
+// na rota) — cenário raro, mas honesto de reportar em vez de silenciar.
+export async function restaurarCondominio(id: number) {
+  await garantirTabelaCondominios();
+  const res = await pool.query(
+    "UPDATE condominios SET deletado_em = NULL, deletado_por = NULL WHERE id = $1 AND deletado_em IS NOT NULL RETURNING id",
+    [id]
+  );
+  return (res.rowCount ?? 0) > 0;
+}

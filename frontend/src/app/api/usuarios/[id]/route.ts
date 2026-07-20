@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { pool } from "../../../../lib/store/db";
 import { obterCondominioId, obterUsuarioId } from "../../../../lib/tenant";
+import { reativarUsuario } from "../../../../lib/store/usuariosDb";
+import { registrarAuditoria } from "../../../../lib/auditoria";
 
 // Soft-delete: nunca apaga o usuário de verdade — só marca status = 'INATIVO' (com
 // auditoria de quando e quem desativou). Login e todos os fluxos de recuperação de
@@ -25,5 +27,43 @@ export async function DELETE(
     return NextResponse.json({ erro: "Usuário não encontrado." }, { status: 404 });
   }
 
+  await registrarAuditoria({
+    condominioId,
+    usuarioId,
+    acao: "DESATIVAR",
+    entidade: "usuario",
+    entidadeId: Number(id),
+  });
+
   return NextResponse.json({ mensagem: `Usuário ${id} revogado com sucesso.` });
+}
+
+// Restauração de conta desativada por engano. Único uso hoje: body { acao: "reativar" }.
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const condominioId = obterCondominioId(req);
+  const usuarioId = obterUsuarioId(req);
+  const { id } = await params;
+  const body = await req.json().catch(() => ({}));
+
+  if (body.acao !== "reativar") {
+    return NextResponse.json({ erro: "Ação inválida." }, { status: 400 });
+  }
+
+  const reativado = await reativarUsuario(Number(id), condominioId);
+  if (!reativado) {
+    return NextResponse.json({ erro: "Usuário não encontrado ou já está ativo." }, { status: 404 });
+  }
+
+  await registrarAuditoria({
+    condominioId,
+    usuarioId,
+    acao: "REATIVAR",
+    entidade: "usuario",
+    entidadeId: Number(id),
+  });
+
+  return NextResponse.json({ mensagem: `Usuário ${id} reativado com sucesso.` });
 }

@@ -99,6 +99,19 @@ export async function verificarConflitoReserva(
 // Cancelamento (soft-delete) de uma reserva — nunca apaga a linha de verdade, só marca
 // status = CANCELADA com auditoria de quando e quem cancelou. Idempotente: cancelar de
 // novo uma reserva já cancelada não faz nada (retorna null).
+// Lista reservas canceladas (soft-delete) — só usado na tela de restauração.
+export async function listarReservasCanceladas(condominioId = 1): Promise<any[]> {
+  const res = await pool.query<ReservaRow>(
+    `SELECT id, area, TO_CHAR(data_reserva, 'YYYY-MM-DD') AS data_reserva,
+            horario_inicio, horario_fim, dia_inteiro, convidados, observacao, morador, status
+     FROM reservas
+     WHERE condominio_id = $1 AND status = ANY($2::text[])
+     ORDER BY cancelado_em DESC`,
+    [condominioId, STATUS_RESERVA_INATIVOS]
+  );
+  return res.rows.map(comHorarioExibicao);
+}
+
 export async function cancelarReserva(
   id: number,
   condominioId: number,
@@ -112,5 +125,45 @@ export async function cancelarReserva(
     [id, condominioId, canceladoPor, STATUS_RESERVA_INATIVOS]
   );
   return res.rows[0] ?? null;
+}
+
+// Restauração de uma reserva cancelada por engano. Diferente de usuário/enquete/condomínio,
+// aqui não basta "desmarcar cancelado": o horário pode ter sido ocupado por outra reserva
+// nesse meio-tempo, então a mesma checagem de conflito usada na criação roda de novo antes
+// de reativar — se colidir, devolve o conflito em vez de restaurar.
+export async function reativarReserva(
+  id: number,
+  condominioId: number
+): Promise<{ ok: true; id: number } | { ok: false; erro: string } | null> {
+  const atual = await pool.query<ReservaRow>(
+    `SELECT id, area, TO_CHAR(data_reserva, 'YYYY-MM-DD') AS data_reserva,
+            horario_inicio, horario_fim, dia_inteiro, status
+     FROM reservas WHERE id = $1 AND condominio_id = $2 AND status = ANY($3::text[])`,
+    [id, condominioId, STATUS_RESERVA_INATIVOS]
+  );
+  const reserva = atual.rows[0];
+  if (!reserva) return null;
+
+  const conflito = await verificarConflitoReserva(
+    condominioId,
+    reserva.area,
+    reserva.data_reserva,
+    reserva.horario_inicio,
+    reserva.horario_fim,
+    reserva.dia_inteiro,
+    id
+  );
+  if (conflito) {
+    return {
+      ok: false,
+      erro: `Não é possível restaurar: o horário já está ocupado por outra reserva no(a) ${reserva.area}.`,
+    };
+  }
+
+  await pool.query(
+    `UPDATE reservas SET status = 'CONFIRMADO', cancelado_em = NULL, cancelado_por = NULL WHERE id = $1`,
+    [id]
+  );
+  return { ok: true, id };
 }
 
